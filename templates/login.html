@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jetro AI | Admin Authentication</title>
+    
+    <!-- External CSS Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-image: radial-gradient(circle at 50% 0%, #151e36 0%, #060913 70%);
+            padding: 1.5rem;
+        }
+        
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+            padding: 3rem 2.5rem;
+            text-align: center;
+            border-top: 4px solid var(--accent-cyan);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        }
+        
+        .login-logo {
+            font-size: 2.2rem;
+            font-family: var(--font-heading);
+            font-weight: 800;
+            color: #ffffff;
+            background: linear-gradient(135deg, #ffffff 30%, var(--accent-cyan) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        .login-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-bottom: 2rem;
+            font-weight: 500;
+        }
+        
+        .error-banner {
+            background: rgba(244, 63, 94, 0.12);
+            border: 1px solid rgba(244, 63, 94, 0.25);
+            color: var(--accent-rose);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        .input-group {
+            position: relative;
+            margin-bottom: 1.25rem;
+            text-align: left;
+        }
+        
+        .input-icon {
+            position: absolute;
+            left: 1rem;
+            top: 2.2rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+        
+        .login-input {
+            padding-left: 2.75rem !important;
+        }
+    </style>
+</head>
+<body class="theme-obsidian">
+
+    <div class="glass-panel login-card">
+        
+        <div style="display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-bottom: 1.5rem;">
+            <img src="/static/images/logo_lakshmifx.png" style="height: 45px; border-radius: 6px; background: white; padding: 2px;" alt="LAKSHMIFX Logo">
+            <div style="width: 1px; height: 25px; background: rgba(255,255,255,0.15);"></div>
+            <img src="/static/images/logo_sarthifxm.png" style="height: 45px; border-radius: 6px;" alt="SARTHIFXM Logo">
+        </div>
+        <div class="login-logo" style="font-size: 1.25rem; font-weight: 800; background: none; -webkit-text-fill-color: initial; justify-content: center; margin-bottom: 0.25rem; color: #ffffff;">
+            LAKSHMIFX &amp; SARTHIFXM
+        </div>
+        <div class="login-subtitle" style="font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2rem;">
+            Admin Authentication Gate
+        </div>
+        
+        <!-- ERROR BANNER -->
+        {% if error %}
+        <div class="error-banner">
+            <i class="fa-solid fa-circle-exclamation"></i> {{ error }}
+        </div>
+        {% endif %}
+        
+        <!-- AUTH FORM -->
+        <form method="POST" action="{{ url_for('admin_login') }}">
+            
+            <div class="input-group">
+                <label class="form-label" for="username">Username ID</label>
+                <i class="fa-solid fa-user input-icon"></i>
+                <input type="text" id="username" name="username" class="form-input login-input" placeholder="Enter admin User ID" required autocomplete="off">
+            </div>
+            
+            <div class="input-group" style="margin-bottom: 2rem;">
+                <label class="form-label" for="password">Password</label>
+                <i class="fa-solid fa-lock input-icon"></i>
+                <input type="password" id="password" name="password" class="form-input login-input" placeholder="Enter admin password" required>
+            </div>
+            
+            <button type="submit" class="btn-primary" style="padding: 0.85rem 1.5rem;">
+                <i class="fa-solid fa-right-to-bracket"></i> Authenticate Session
+            </button>
+            
+        </form>
+        
+        <div style="margin-top: 1.5rem;">
+            <a href="/" style="color: var(--text-muted); font-size: 0.75rem; text-decoration: none; font-weight: 600; transition: var(--transition-smooth);" onmouseover="this.style.color='var(--accent-cyan)'" onmouseout="this.style.color='var(--text-muted)'">
+                <i class="fa-solid fa-arrow-left"></i> Back to Investor Portal
+            </a>
+        </div>
+        
+    </div>
+
+</body>
+</html>

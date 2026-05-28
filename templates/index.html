@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jetro AI | Premium MT5 Live Advisor Dashboard</title>
+    
+    <!-- External CSS Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='1.2') }}">
+    
+    <!-- TradingView Lightweight Charts (Premium Candlestick Rendering) -->
+    <script src="{{ url_for('static', filename='js/lightweight-charts.standalone.production.js') }}"></script>
+</head>
+<body class="theme-obsidian">
+
+    <div class="dashboard-container">
+        
+        <!-- HEADER PANEL WITH DUAL LOGOS & CORPORATE BRANDING -->
+        <header class="glass-panel" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
+            <div style="display: flex; align-items: center; gap: 1.25rem;">
+                <img src="/static/images/logo_lakshmifx.png" style="height: 50px; border-radius: 6px; background: white; padding: 2px;" alt="LAKSHMIFX Logo">
+                <div style="width: 1px; height: 35px; background: rgba(255,255,255,0.15);"></div>
+                <img src="/static/images/logo_sarthifxm.png" style="height: 50px; border-radius: 6px;" alt="SARTHIFXM Logo">
+                <div style="margin-left: 0.5rem;">
+                    <h1 style="font-size: 1.25rem; font-weight: 800; font-family: var(--font-heading); color: #ffffff; letter-spacing: -0.2px; margin-bottom: 0px; display: flex; align-items: center; gap: 0.5rem; background: none; -webkit-text-fill-color: initial;">
+                        LAKSHMIFX &amp; SARTHIFXM
+                    </h1>
+                    <p style="font-size: 0.65rem; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">
+                        LAKSHMIFX TRUSTLINE INDIA PVT. LTD. &amp; SARTHIFXM CAPITAL LIMITED (LONDON)
+                    </p>
+                </div>
+            </div>
+            
+            <div class="account-summary" style="display: flex; gap: 1.25rem; align-items: center; margin-left: auto;">
+                <span>Account node: <strong id="header-login">-----</strong></span>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <label class="form-label" style="margin-bottom: 0; font-size: 0.7rem;"><i class="fa-solid fa-palette"></i> Palette:</label>
+                    <select id="theme-select" class="form-input" style="width: 140px; padding: 0.35rem 0.5rem; font-size: 0.75rem;" onchange="changeTheme(this.value)">
+                        <option value="obsidian" selected>Deep Obsidian</option>
+                        <option value="emerald">Emerald Wealth</option>
+                        <option value="royal">Royal Amethyst</option>
+                        <option value="platinum">Platinum Silver</option>
+                    </select>
+                </div>
+                {% if role == 'admin' %}
+                <a href="/admin/logout" class="btn-primary btn-mini" style="background: var(--accent-rose); border-color: var(--accent-rose); color: white; display: flex; align-items: center; gap: 0.3rem; text-decoration: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 600; font-size: 0.75rem; transition: var(--transition-smooth); width: auto; height: auto;">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </a>
+                {% else %}
+                <a href="/admin" class="btn-secondary btn-mini" style="display: flex; align-items: center; gap: 0.3rem; text-decoration: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 600; font-size: 0.75rem; border: 1px solid rgba(255, 255, 255, 0.1); transition: var(--transition-smooth); width: auto; height: auto;">
+                    <i class="fa-solid fa-lock"></i> Admin Login
+                </a>
+                {% endif %}
+            </div>
+            
+            <div class="status-badge" style="padding: 0.5rem 1rem;">
+                <div id="connection-dot" class="status-dot offline"></div>
+                <div id="connection-text" class="status-text text-muted">TERMINAL OFFLINE</div>
+            </div>
+        </header>
+
+
+
+        <!-- EXECUTIVE STATISTICS SUMMARY -->
+        <section class="metrics-grid">
+            
+            <!-- Net Profit Card (Report Link Trigger) -->
+            <div class="glass-panel metric-card profit-card" onclick="openReport('history')" style="cursor: pointer; position: relative;" title="Click to open History ledger statement">
+                <div class="metric-header">
+                    <span>NET PROFIT</span>
+                    <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.75rem; color: var(--text-muted);"></i>
+                </div>
+                <div id="stat-net-profit" class="metric-value">$0.00</div>
+                <div id="stat-net-profit-pct" class="metric-change change-up">
+                    <i class="fa-solid fa-arrow-trend-up"></i> 0.0% ROI
+                </div>
+            </div>
+            
+            <!-- Balance & Equity Card (Report Link Trigger) -->
+            <div class="glass-panel metric-card cyan-card" onclick="openReport('open')" style="cursor: pointer; position: relative;" title="Click to open Open Positions statement">
+                <div class="metric-header">
+                    <span>LIVE EQUITY / BAL</span>
+                    <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.75rem; color: var(--text-muted);"></i>
+                </div>
+                <div id="stat-equity" class="metric-value">$0.00</div>
+                <div class="metric-change" style="color: var(--text-secondary)">
+                    Balance: <span id="stat-balance">$0.00</span>
+                </div>
+            </div>
+            
+            <!-- Win Rate Card (Report Link Trigger) -->
+            <div class="glass-panel metric-card violet-card" onclick="openReport('history')" style="cursor: pointer; position: relative;" title="Click to open History ledger statement">
+                <div class="metric-header">
+                    <span>WIN RATE</span>
+                    <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.75rem; color: var(--text-muted);"></i>
+                </div>
+                <div id="stat-win-rate" class="metric-value">0.0%</div>
+                <div class="metric-change" style="color: var(--text-secondary)">
+                    Total Trades: <span id="stat-total-trades">0</span>
+                </div>
+            </div>
+            
+            <!-- Profit Factor Card -->
+            <div class="glass-panel metric-card amber-card">
+                <div class="metric-header">
+                    <span>PROFIT FACTOR</span>
+                    <i class="fa-solid fa-filter-circle-dollar" style="color: var(--accent-amber)"></i>
+                </div>
+                <div id="stat-profit-factor" class="metric-value">0.00</div>
+                <div class="metric-change" style="color: var(--text-secondary)">
+                    Sharpe: <span id="stat-sharpe">0.00</span>
+                </div>
+            </div>
+
+            <!-- Risk Rating Card -->
+            <div class="glass-panel metric-card profit-card">
+                <div class="metric-header">
+                    <span>RISK RATING</span>
+                    <i class="fa-solid fa-shield-halved" style="color: var(--accent-emerald)"></i>
+                </div>
+                <div class="metric-value" style="color: var(--accent-emerald)">A+ SECURE</div>
+                <div class="metric-change" style="color: var(--text-secondary)">
+                    Cap: Low Exposure
+                </div>
+            </div>
+            
+        </section>
+
+        <!-- DASHBOARD SPLIT BODY -->
+        <main class="dashboard-body">
+            
+            <!-- PRIMARY DASHBOARD COLUMN -->
+            <div class="main-column">
+                
+                <!-- CHARTS PANEL -->
+                <div class="glass-panel chart-panel" style="border-top: 4px solid var(--accent-cyan);">
+                    <div class="chart-header">
+                        <div class="chart-title">
+                            <i class="fa-solid fa-chart-area text-muted"></i> 
+                            <span id="chart-display-title">Equity Growth Curve</span>
+                        </div>
+                        <div class="chart-controls">
+                            <!-- Chart Selection -->
+                            <button id="btn-chart-equity" class="chart-btn active" onclick="switchChartMode('equity')">Equity Curve</button>
+                            <button id="btn-chart-candles" class="chart-btn" onclick="switchChartMode('candles')">Live Candles</button>
+                            
+                            <!-- Dropdown for symbol selection in Candlesticks mode -->
+                            <select id="candle-symbol-select" class="form-input" style="width: 120px; padding: 0.3rem 0.5rem; font-size: 0.75rem; display: none;" onchange="loadLiveCandles()">
+                                <option value="EURUSD">EURUSD</option>
+                            </select>
+                            
+                            <select id="candle-tf-select" class="form-input" style="width: 70px; padding: 0.3rem 0.5rem; font-size: 0.75rem; display: none;" onchange="loadLiveCandles()">
+                                <option value="M1">M1</option>
+                                <option value="M5" selected>M5</option>
+                                <option value="M15">M15</option>
+                                <option value="M30">M30</option>
+                                <option value="H1">H1</option>
+                                <option value="H4">H4</option>
+                                <option value="D1">D1</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- div mount-point for TradingView charts instead of canvas -->
+                    <div class="chart-container" id="liveChartContainer" style="border-radius: 12px; overflow: hidden; background: rgba(6, 9, 19, 0.4);"></div>
+                </div>
+
+                <!-- UNIFIED LIVE PORTFOLIO & PERFORMANCE ANALYTICS CONSOLE -->
+                <div class="glass-panel table-panel" style="border-top: 4px solid var(--accent-violet); cursor: default;" title="Live Multi-Asset Portfolio & Daily Analytics Overview">
+                    <div class="table-header-row" style="margin-bottom: 1.5rem;">
+                        <h3 class="chart-title">
+                            <i class="fa-solid fa-folder-tree" style="color: var(--accent-violet)"></i> 
+                            Live Portfolio Allocation & Daily Performance Cockpit
+                        </h3>
+                        <span class="status-badge" style="padding: 0.35rem 0.85rem; font-size: 0.75rem; background: rgba(139, 92, 246, 0.12); border-color: rgba(139, 92, 246, 0.2);">
+                            Weighted 24h Change: <strong id="portfolio-weighted-change" class="profit-text">+0.00%</strong>
+                        </span>
+                    </div>
+                    
+                    <!-- Split grid layout (Fully Responsive auto-fit grid) -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 2rem;">
+                        
+                        <!-- Left Panel: Live Multi-Asset Allocation Cards Grid -->
+                        <div>
+                            <span class="form-label" style="font-size: 0.7rem; color: var(--accent-violet); margin-bottom: 0.75rem;">
+                                <i class="fa-solid fa-coins"></i> Live Multi-Asset Allocation (Click any asset box for Live Chart &amp; Details)
+                            </span>
+                            <div id="portfolio-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 1rem;">
+                                <div class="empty-state" style="grid-column: 1 / -1; padding: 1.5rem 0;">
+                                    <i class="fa-solid fa-circle-notch fa-spin"></i>
+                                    <p>Connecting portfolio terminal...</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Right Panel: Portfolio Performance & Live Analytics -->
+                        <div style="border-left: 1px solid rgba(255, 255, 255, 0.05); padding-left: 2rem; display: flex; flex-direction: column; justify-content: space-between;">
+                            <div>
+                                <span class="form-label" style="font-size: 0.7rem; color: var(--accent-cyan); margin-bottom: 0.75rem;">
+                                    <i class="fa-solid fa-gauge-high"></i> Daily Performance & Analytics Summary
+                                </span>
+                                
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                                    <div class="glass-panel" style="padding: 0.85rem 1rem; background: rgba(16, 185, 129, 0.04); border-color: rgba(16, 185, 129, 0.08);">
+                                        <span class="form-label" style="font-size: 0.6rem; color: var(--accent-emerald);">Today's Closed P/L</span>
+                                        <strong id="port-today-profit" style="font-size: 1.1rem; font-family: var(--font-heading); display: block;">$0.00</strong>
+                                    </div>
+                                    <div class="glass-panel" style="padding: 0.85rem 1rem; background: rgba(6, 182, 212, 0.04); border-color: rgba(6, 182, 212, 0.08);">
+                                        <span class="form-label" style="font-size: 0.6rem; color: var(--accent-cyan);">Live Floating P/L</span>
+                                        <strong id="port-floating-pl" style="font-size: 1.1rem; font-family: var(--font-heading); display: block;">$0.00</strong>
+                                    </div>
+                                </div>
+                                
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                    <div class="glass-panel" style="padding: 0.85rem 1rem;">
+                                        <span class="form-label" style="font-size: 0.65rem; color: var(--text-muted);">Today's Closed Trades</span>
+                                        <strong id="port-today-trades" style="font-size: 1.1rem; font-family: var(--font-heading); display: block;">0</strong>
+                                    </div>
+                                    <div class="glass-panel" style="padding: 0.85rem 1rem;">
+                                        <span class="form-label" style="font-size: 0.65rem; color: var(--accent-amber);">Daily Win Rate</span>
+                                        <strong id="port-today-winrate" style="font-size: 1.1rem; font-family: var(--font-heading); display: block; color: var(--accent-amber);">0.0%</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="glass-panel" style="padding: 0.85rem 1rem; background: rgba(139, 92, 246, 0.03); border: 1px dashed rgba(139, 92, 246, 0.2); display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; border-radius: 10px;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-secondary);">
+                                    <i class="fa-solid fa-shield-halved" style="color: var(--accent-violet);"></i>
+                                    <span>Real-Time Portfolio Risk State:</span>
+                                </div>
+                                <span class="badge-type" style="background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald); font-size: 0.65rem; padding: 0.2rem 0.5rem;">OPTIMIZED / SECURE</span>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+
+                <!-- FOREX MARKET INTELLIGENCE HUB & TICKERS -->
+                <div class="glass-panel table-panel" style="border-top: 4px solid var(--accent-amber); cursor: default;" title="Forex Market Intelligence, Live News Wire & Economic Calendar">
+                    <div class="table-header-row" style="margin-bottom: 1.5rem;">
+                        <h3 class="chart-title">
+                            <i class="fa-solid fa-square-rss" style="color: var(--accent-amber)"></i> 
+                            Forex Market Intelligence & Institutional News Wire
+                        </h3>
+                        <span class="status-badge" style="padding: 0.35rem 0.85rem; font-size: 0.75rem; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.2);">
+                            Next High Impact: <strong id="calendar-next-event" style="color: var(--accent-rose);">USD Core PCE Index (18:00)</strong>
+                        </span>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1.35fr 0.95fr; gap: 2rem;">
+                        
+                        <!-- Left Split: Calendar & News Wire -->
+                        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                            <!-- Economic Calendar Table -->
+                            <div>
+                                <span class="form-label" style="font-size: 0.7rem; color: var(--accent-amber); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.3rem;">
+                                    <i class="fa-solid fa-calendar-day"></i> Upcoming High-Impact Economic Calendar (Today's Releases)
+                                </span>
+                                <div class="table-wrapper" style="background: rgba(3, 7, 18, 0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.02);">
+                                    <table style="font-size: 0.8rem; width: 100%;">
+                                        <thead>
+                                            <tr>
+                                                <th style="padding: 0.6rem 1rem; font-size: 0.7rem; color: var(--text-secondary);">Time</th>
+                                                <th style="padding: 0.6rem 1rem; font-size: 0.7rem; color: var(--text-secondary);">Cur</th>
+                                                <th style="padding: 0.6rem 1rem; font-size: 0.7rem; color: var(--text-secondary);">Event</th>
+                                                <th style="padding: 0.6rem 1rem; font-size: 0.7rem; text-align: center; color: var(--text-secondary);">Impact</th>
+                                                <th style="padding: 0.6rem 1rem; font-size: 0.7rem; color: var(--text-secondary);">Forecast</th>
+                                                <th style="padding: 0.6rem 1rem; font-size: 0.7rem; color: var(--text-secondary);">Previous</th>
+                                                <th style="padding: 0.6rem 1rem; font-size: 0.7rem; color: var(--text-secondary);">Actual</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="economic-calendar-tbody">
+                                            <tr>
+                                                <td colspan="7" class="empty-state" style="padding: 1.5rem 0;">
+                                                    <i class="fa-solid fa-circle-notch fa-spin"></i>
+                                                    <p>Synchronizing global central bank schedules...</p>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <!-- Real-time Flashing FX News Bulletins -->
+                            <div>
+                                <span class="form-label" style="font-size: 0.7rem; color: var(--accent-cyan); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.3rem;">
+                                    <i class="fa-solid fa-tower-broadcast fa-fade" style="color: var(--accent-cyan);"></i> Bloomberg / Reuters Institutional FX Wire
+                                </span>
+                                <div id="forex-news-container" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 200px; overflow-y: auto; padding-right: 0.25rem;">
+                                    <div class="empty-state" style="padding: 1.5rem 0;">
+                                        <i class="fa-solid fa-circle-notch fa-spin"></i>
+                                        <p>Connecting institutional news terminals...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Right Split: Live Technical Graphics Widget -->
+                        <div style="border-left: 1px solid rgba(255, 255, 255, 0.05); padding-left: 2rem; display: flex; flex-direction: column;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; gap: 0.5rem; flex-wrap: wrap;">
+                                <span class="form-label" style="font-size: 0.7rem; color: var(--accent-violet); margin-bottom: 0; display: flex; align-items: center; gap: 0.3rem;">
+                                    <i class="fa-solid fa-chart-pie"></i> TradingView Technical Sentiment Analytics
+                                </span>
+                                <!-- Dropdown Select for TV Symbol -->
+                                <select id="tv-gauge-symbol-select" class="form-input" style="width: 120px; padding: 0.25rem 0.5rem; font-size: 0.72rem; border-radius: 6px;" onchange="updateTradingViewGauge(this.value)">
+                                    <option value="EURUSD" selected>EURUSD (Euro)</option>
+                                    <option value="GBPUSD">GBPUSD (Pound)</option>
+                                    <option value="USDJPY">USDJPY (Yen)</option>
+                                    <option value="XAUUSD">XAUUSD (Gold)</option>
+                                    <option value="BTCUSD">BTCUSD (Bitcoin)</option>
+                                    <option value="UKOIL">UKOIL (Brent Oil)</option>
+                                    <option value="USOIL">USOIL (WTI Oil)</option>
+                                </select>
+                            </div>
+                            
+                            <div style="width: 100%; height: 350px; background: rgba(3, 7, 18, 0.25); border-radius: 10px; overflow: hidden; position: relative;">
+                                <!-- Dynamic Mount Point for TradingView Technical Analysis Widget -->
+                                <div id="tradingview-gauge-mount" class="tradingview-widget-container" style="width: 100%; height: 100%;">
+                                    <div class="tradingview-widget-container__widget" style="width: 100%; height: 100%;"></div>
+                                    <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js" async>
+                                    {
+                                        "interval": "5m",
+                                        "width": "100%",
+                                        "isTransparent": true,
+                                        "height": "100%",
+                                        "symbol": "FX:EURUSD",
+                                        "showIntervalTabs": true,
+                                        "displayMode": "single",
+                                        "locale": "en",
+                                        "colorTheme": "dark"
+                                    }
+                                    </script>
+                                </div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+
+                <!-- OPEN TRADES SUMMARY BOX -->
+                <div class="glass-panel table-panel" onclick="openReport('open')" style="border-top: 4px solid var(--accent-cyan); box-shadow: 0px 4px 20px rgba(6, 182, 212, 0.05); cursor: pointer;" title="Click to open Open Positions report screen">
+                    <div class="table-header-row">
+                        <h3 class="chart-title"><i class="fa-solid fa-wave-square" style="color: var(--accent-cyan)"></i> Open Positions (<span id="open-trades-count">0</span>) <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.75rem; color: var(--text-muted); margin-left: 0.4rem;"></i></h3>
+                        <span class="status-badge" style="padding: 0.3rem 0.8rem; font-size: 0.75rem;">
+                            Live Floating P/L: <strong id="live-floating-pl" class="profit-text">$0.00</strong>
+                        </span>
+                    </div>
+                    
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Ticket</th>
+                                    <th>Symbol</th>
+                                    <th>Type</th>
+                                    <th>Volume</th>
+                                    <th>Open Price</th>
+                                    <th>Current Price</th>
+                                    <th>SL</th>
+                                    <th>TP</th>
+                                    <th>Profit</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="open-positions-tbody">
+                                <tr>
+                                    <td colspan="10" class="empty-state">
+                                        <i class="fa-regular fa-folder-open"></i>
+                                        <p>No active positions open at the moment.</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- CLOSED TRADES SUMMARY BOX -->
+                <div class="glass-panel table-panel" onclick="openReport('history')" style="border-top: 4px solid var(--accent-emerald); box-shadow: 0px 4px 20px rgba(16, 185, 129, 0.05); cursor: pointer;" title="Click to open History report ledger screen">
+                    <div class="table-header-row">
+                        <h3 class="chart-title"><i class="fa-solid fa-history" style="color: var(--accent-emerald)"></i> Realized Trade History <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.75rem; color: var(--text-muted); margin-left: 0.4rem;"></i></h3>
+                        <div style="display: flex; gap: 0.5rem;" onclick="event.stopPropagation()">
+                            <button class="chart-btn btn-mini" onclick="refreshHistory()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Ticket</th>
+                                    <th>Symbol</th>
+                                    <th>Type</th>
+                                    <th>Volume</th>
+                                    <th>Close Price</th>
+                                    <th>Close Time</th>
+                                    <th>Net P/L</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-tbody">
+                                <tr>
+                                    <td colspan="7" class="empty-state">
+                                        <i class="fa-solid fa-circle-notch fa-spin"></i>
+                                        <p>Fetching trading history...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- SECONDARY SIDEBAR COLUMN -->
+            <div class="side-column">
+                
+                <!-- LAKSHMIFX & SARTHIFXM PROP DESK SENTIMENT INDEX -->
+                <div class="glass-panel distribution-panel" style="border-top: 4px solid var(--accent-cyan);">
+                    <h3 class="chart-title" style="margin-bottom: 0.5rem;"><i class="fa-solid fa-gauge-high" style="color: var(--accent-cyan)"></i> Prop Desk Sentiment Index</h3>
+                    <p style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+                        Real-time proprietary algorithms tracking institutional buy/sell pressure.
+                    </p>
+                    
+                    <div class="symbol-list" style="gap: 0.85rem;">
+                        <!-- XAUUSD Sentiment -->
+                        <div class="symbol-item" style="flex-direction: column; align-items: stretch; gap: 0.5rem; padding: 0.75rem 1rem;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 700;">
+                                <span>Gold (XAUUSDm)</span>
+                                <span style="color: var(--accent-emerald);">82% Bullish</span>
+                            </div>
+                            <div class="symbol-bar-container" style="width: 100%; height: 5px;">
+                                <div class="symbol-bar" style="width: 82%; background: linear-gradient(90deg, var(--accent-emerald) 0%, var(--accent-cyan) 100%);"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- BTCUSD Sentiment -->
+                        <div class="symbol-item" style="flex-direction: column; align-items: stretch; gap: 0.5rem; padding: 0.75rem 1rem;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 700;">
+                                <span>Bitcoin (BTCUSDm)</span>
+                                <span style="color: var(--accent-emerald);">65% Bullish</span>
+                            </div>
+                            <div class="symbol-bar-container" style="width: 100%; height: 5px;">
+                                <div class="symbol-bar" style="width: 65%; background: linear-gradient(90deg, var(--accent-emerald) 0%, var(--accent-cyan) 100%);"></div>
+                            </div>
+                        </div>
+
+                        <!-- OIL Sentiment -->
+                        <div class="symbol-item" style="flex-direction: column; align-items: stretch; gap: 0.5rem; padding: 0.75rem 1rem;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 700;">
+                                <span>Crude Oil (UKOILm)</span>
+                                <span style="color: var(--accent-rose);">58% Bearish</span>
+                            </div>
+                            <div class="symbol-bar-container" style="width: 100%; height: 5px; background: rgba(244, 63, 94, 0.08);">
+                                <div class="symbol-bar" style="width: 58%; background: var(--accent-rose);"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(6, 182, 212, 0.04); border: 1px dashed rgba(6, 182, 212, 0.2); border-radius: 8px; font-size: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
+                        <span style="color: var(--text-secondary); font-weight: 600;">Prop Net Allocation Bias:</span>
+                        <strong style="color: var(--accent-emerald); font-weight: 700;">STRONG BUY BIAS</strong>
+                    </div>
+                </div>
+
+                <!-- LIVE TRADING CALLS & UPDATES -->
+                <div class="glass-panel distribution-panel" style="border-top: 4px solid var(--accent-violet);">
+                    <h3 class="chart-title" style="margin-bottom: 0.5rem;"><i class="fa-solid fa-volume-high" style="color: var(--accent-violet)"></i> Live Trading Calls and Updates</h3>
+                    <p style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                        Proprietary desk voice notes, real-time alerts, and trading calls.
+                    </p>
+                    
+                    <!-- ADVISORY UPLOAD FORM (ADMIN ONLY) -->
+                    {% if role == 'admin' %}
+                    <div style="background: rgba(15, 23, 42, 0.4); padding: 1rem; border-radius: 10px; margin-bottom: 1.25rem; border: 1px solid rgba(139, 92, 246, 0.15);">
+                        <span id="advisory-form-title" class="form-label" style="font-size: 0.7rem; color: var(--accent-violet); margin-bottom: 0.5rem;"><i class="fa-solid fa-microphone"></i> Broadcast New Advisory</span>
+                        
+                        <div class="form-group" style="margin-bottom: 0.75rem;">
+                            <input type="text" id="advisory-title" class="form-input" style="padding: 0.4rem 0.6rem; font-size: 0.8rem;" placeholder="Call Title (e.g. Gold FOMC Setup)">
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 0.75rem;">
+                            <textarea id="advisory-text" class="form-input" style="padding: 0.4rem 0.6rem; font-size: 0.8rem; resize: vertical; min-height: 50px;" placeholder="Trade details or notes..."></textarea>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 0.75rem;">
+                            <label class="form-label" style="font-size: 0.6rem;">Upload Voice Call / Audio File (.mp3/.wav)</label>
+                            <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                                <input type="file" id="advisory-audio" accept="audio/*" class="form-input" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                <div id="edit-audio-indicator" style="font-size: 0.65rem; color: var(--text-secondary); display: none;">
+                                    <i class="fa-solid fa-circle-info"></i> Keeping existing audio file. Upload new file to replace it.
+                                    <label style="display: inline-flex; align-items: center; gap: 0.25rem; margin-left: 0.75rem; color: var(--accent-rose); cursor: pointer;">
+                                        <input type="checkbox" id="remove-audio-checkbox"> Remove audio
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button id="advisory-submit-btn" class="btn-primary" style="flex: 2; border-radius: 6px; padding: 0.45rem 0; font-size: 0.8rem;" onclick="broadcastAdvisory()"><i class="fa-solid fa-paper-plane"></i> Publish Advisory</button>
+                            <button id="advisory-cancel-btn" class="btn-secondary" style="flex: 1; border-radius: 6px; padding: 0.45rem 0; font-size: 0.8rem; display: none;" onclick="cancelAdvisoryEdit()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- ADVISORY LIST FEED (VISIBLE TO ALL) -->
+                    <div id="advisory-feed" style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div class="empty-state" style="padding: 1rem 0;">
+                            No broadcasts yet.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DAILY PL METRIC CARD (Report Link Trigger) -->
+                <div class="glass-panel distribution-panel" style="border-top: 4px solid var(--accent-emerald); cursor: pointer;" onclick="openReport('daily')" title="Click to open Daily profit/loss statement report page">
+                    <h3 class="chart-title"><i class="fa-solid fa-calendar-check" style="color: var(--accent-emerald)"></i> Active Days Breakdown <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.75rem; color: var(--text-muted); margin-left: 0.4rem;"></i></h3>
+                    <p style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                        Returns performance list grouped daily.
+                    </p>
+                    <div id="daily-pl-container" class="symbol-list" style="max-height: 250px; overflow-y: auto;" onclick="event.stopPropagation()">
+                        <div class="empty-state" style="padding: 1.5rem 0;">
+                            No daily trade metrics available.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- INSTITUTIONAL COPY DESK STATS -->
+                <div class="glass-panel distribution-panel" style="border-top: 4px solid var(--accent-violet);">
+                    <h3 class="chart-title" style="margin-bottom: 0.5rem;"><i class="fa-solid fa-users" style="color: var(--accent-violet)"></i> Copy Allocation Metrics</h3>
+                    <p style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+                        Real-time stats tracking active replication and copier assets.
+                    </p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.4rem;">
+                            <span style="color: var(--text-secondary);"><i class="fa-solid fa-vault" style="width: 15px; color: var(--accent-violet);"></i> Copy AUM</span>
+                            <strong style="color: var(--accent-cyan); font-family: var(--font-heading); font-size: 0.85rem;">$2,845,600+ USD</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.4rem;">
+                            <span style="color: var(--text-secondary);"><i class="fa-solid fa-user-check" style="width: 15px; color: var(--accent-violet);"></i> Active Copiers</span>
+                            <strong style="color: #ffffff;">1,482 Investors</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.4rem;">
+                            <span style="color: var(--text-secondary);"><i class="fa-solid fa-percentage" style="width: 15px; color: var(--accent-violet);"></i> Performance Fee</span>
+                            <strong style="color: #ffffff;">20% (High Water Mark)</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.4rem;">
+                            <span style="color: var(--text-secondary);"><i class="fa-solid fa-bolt" style="width: 15px; color: var(--accent-violet);"></i> Copy Sync Latency</span>
+                            <strong style="color: var(--accent-emerald);">~15ms (Ultra Fast)</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem;">
+                            <span style="color: var(--text-secondary);"><i class="fa-solid fa-gears" style="width: 15px; color: var(--accent-violet);"></i> Allocation Model</span>
+                            <strong style="color: var(--accent-cyan);">Proportional Risk</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ALERTS & NOTIFICATIONS SETTINGS (ADMIN ONLY) -->
+                {% if role == 'admin' %}
+                <div class="glass-panel table-panel">
+                    <h3 class="chart-title" style="margin-bottom: 1.25rem;"><i class="fa-solid fa-bell-ring" style="color: var(--accent-amber)"></i> Real-Time Signals Setup</h3>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Telegram Bot Token</label>
+                        <input type="password" id="telegram-token" class="form-input" placeholder="e.g. 562145892:AA...U8">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Telegram Chat / Channel ID</label>
+                        <input type="text" id="telegram-chat" class="form-input" placeholder="e.g. -10015487452 or @mychannel">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">WhatsApp Gateway Webhook</label>
+                        <input type="text" id="whatsapp-webhook" class="form-input" placeholder="e.g. https://api.ultramsg.com/... or local gateway">
+                    </div>
+
+                    <div style="margin: 1.5rem 0 1rem 0;">
+                        <div class="toggle-group">
+                            <span class="form-label" style="margin-bottom: 0;">Enable Telegram Alerts</span>
+                            <label class="switch">
+                                <input type="checkbox" id="telegram-enabled-toggle">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        
+                        <div class="toggle-group">
+                            <span class="form-label" style="margin-bottom: 0;">Enable WhatsApp Alerts</span>
+                            <label class="switch">
+                                <input type="checkbox" id="whatsapp-enabled-toggle">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 1rem;">
+                        <button class="btn-secondary" onclick="sendTestNotification('telegram')"><i class="fa-brands fa-telegram"></i> Test Telegram</button>
+                        <button class="btn-secondary" onclick="sendTestNotification('whatsapp')"><i class="fa-brands fa-whatsapp"></i> Test WhatsApp</button>
+                    </div>
+                    
+                    <button class="btn-primary" style="margin-top: 1rem;" onclick="saveAlertSettings()"><i class="fa-solid fa-save"></i> Save Notification Config</button>
+                </div>
+                {% endif %}
+
+                <!-- ASSET DISTRIBUTION -->
+                <div class="glass-panel distribution-panel">
+                    <h3 class="chart-title"><i class="fa-solid fa-pie-chart" style="color: var(--accent-violet)"></i> Most Traded Symbols</h3>
+                    <div id="symbol-dist-container" class="symbol-list">
+                        <div class="empty-state" style="padding: 1.5rem 0;">
+                            No historical stats found.
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            
+        </main>
+
+        <!-- STUNNING CORPORATE FOOTER -->
+        <footer class="glass-panel" style="margin-top: 2.5rem; padding: 2rem; border-top: 4px solid var(--accent-violet); background: linear-gradient(180deg, rgba(18, 26, 47, 0.4) 0%, rgba(6, 9, 19, 0.8) 100%);">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2.5rem; align-items: start;">
+                
+                <!-- Company Overview & Logos -->
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <img src="/static/images/logo_lakshmifx.png" style="height: 40px; border-radius: 6px; background: white; padding: 2px;" alt="LAKSHMIFX Logo">
+                        <div style="width: 1px; height: 25px; background: rgba(255,255,255,0.15);"></div>
+                        <img src="/static/images/logo_sarthifxm.png" style="height: 40px; border-radius: 6px;" alt="SARTHIFXM Logo">
+                    </div>
+                    <div>
+                        <strong style="color: #ffffff; font-size: 0.95rem; font-family: var(--font-heading); display: block; margin-bottom: 0.25rem;">LAKSHMIFX TRUSTLINE INDIA PVT. LTD.</strong>
+                        <strong style="color: var(--accent-cyan); font-size: 0.85rem; font-family: var(--font-heading); display: block;">SARTHIFXM CAPITAL LIMITED (LONDON)</strong>
+                    </div>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;">
+                        Empowering global traders with institutional-grade technology, real-time market access, and advanced automated trading solutions.
+                    </p>
+                </div>
+                
+                <!-- Quick Contacts -->
+                <div>
+                    <strong style="color: #ffffff; font-size: 0.85rem; font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem;">
+                        <i class="fa-solid fa-phone" style="color: var(--accent-cyan);"></i> Hotlines &amp; Support
+                    </strong>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <a href="tel:+918830844895" style="color: var(--text-primary); text-decoration: none; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; transition: var(--transition-smooth);" onmouseover="this.style.color='var(--accent-cyan)'" onmouseout="this.style.color='var(--text-primary)'">
+                            <i class="fa-solid fa-headset" style="color: var(--accent-emerald);"></i> +91 88308 44895
+                        </a>
+                        <a href="tel:+917675900188" style="color: var(--text-primary); text-decoration: none; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; transition: var(--transition-smooth);" onmouseover="this.style.color='var(--accent-cyan)'" onmouseout="this.style.color='var(--text-primary)'">
+                            <i class="fa-solid fa-headset" style="color: var(--accent-emerald);"></i> +91 76759 00188
+                        </a>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: flex-start; gap: 0.5rem; line-height: 1.4;">
+                            <i class="fa-solid fa-location-dot" style="color: var(--accent-rose); margin-top: 0.2rem;"></i>
+                            <span>
+                                <strong>Address:</strong> 105, 2nd floor, Balaji Arcade, 3-5-919 to 925, above bandhan bank, Venkata swamy Nagar, Himayatnagar, Hyderabad, Telangana 500029
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Digital Footprint -->
+                <div>
+                    <strong style="color: #ffffff; font-size: 0.85rem; font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem;">
+                        <i class="fa-solid fa-globe" style="color: var(--accent-violet);"></i> Web &amp; Emails
+                    </strong>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                            <a href="http://WWW.LAXMIFX.COM" target="_blank" style="color: var(--accent-cyan); text-decoration: none; font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; transition: var(--transition-smooth);" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                                <i class="fa-solid fa-up-right-from-square"></i> WWW.LAXMIFX.COM
+                            </a>
+                            <a href="http://WWW.SARTHIFXM.COM" target="_blank" style="color: var(--accent-cyan); text-decoration: none; font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; transition: var(--transition-smooth);" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                                <i class="fa-solid fa-up-right-from-square"></i> WWW.SARTHIFXM.COM
+                            </a>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.35rem; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 0.5rem;">
+                            <a href="mailto:PANKIT@LAXMIFX.COM" style="color: var(--text-primary); text-decoration: none; font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; transition: var(--transition-smooth);" onmouseover="this.style.color='var(--accent-cyan)'" onmouseout="this.style.color='var(--text-primary)'">
+                                <i class="fa-regular fa-envelope" style="color: var(--accent-amber);"></i> PANKIT@LAXMIFX.COM
+                            </a>
+                            <a href="mailto:INFO@LAXMIFX.COM" style="color: var(--text-primary); text-decoration: none; font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; transition: var(--transition-smooth);" onmouseover="this.style.color='var(--accent-cyan)'" onmouseout="this.style.color='var(--text-primary)'">
+                                <i class="fa-regular fa-envelope" style="color: var(--accent-amber);"></i> INFO@LAXMIFX.COM
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <div style="border-top: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1.5rem; padding-top: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; font-size: 0.7rem; color: var(--text-muted);">
+                <span>&copy; 2026 LAKSHMIFX TRUSTLINE INDIA PVT. LTD. &amp; SARTHIFXM CAPITAL LIMITED. All rights reserved.</span>
+                <div style="display: flex; gap: 1rem;">
+                    <span>Security Audited</span>
+                    <span>MetaTrader 5 Connected</span>
+                </div>
+            </div>
+        </footer>
+        
+    </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toast">
+        <i id="toast-icon" class="fa-solid fa-info-circle"></i>
+        <span id="toast-msg">Notification Message</span>
+    </div>
+
+    <!-- Script Entrypoint -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

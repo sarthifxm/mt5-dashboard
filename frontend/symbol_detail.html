@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LAKSHMIFX & SARTHIFXM | Symbol Analytics - Asset</title>
+    
+    <!-- External CSS Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./static/css/style.css?v=1.2">
+    
+    <!-- TradingView Lightweight Charts (Premium Candlestick Rendering) -->
+    <script src="./static/js/lightweight-charts.standalone.production.js"></script>
+    
+    <style>
+        body {
+            padding: 2rem;
+            min-height: 100vh;
+            background-image: radial-gradient(circle at 50% 0%, #151e36 0%, #060913 70%);
+        }
+        
+        .symbol-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        
+        .symbol-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+        }
+        
+        .symbol-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .standalone-chart-container {
+            height: 480px;
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            background: rgba(6, 9, 19, 0.4);
+            margin-top: 1.5rem;
+        }
+        
+        .timeframe-pill {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            color: var(--text-secondary);
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+        
+        .timeframe-pill:hover, .timeframe-pill.active {
+            background: var(--accent-cyan);
+            color: var(--bg-base);
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+        }
+    </style>
+</head>
+<body class="theme-obsidian">
+
+    <div class="symbol-container">
+        
+        <!-- STANDALONE HEADER WITH DUAL LOGOS -->
+        <header class="glass-panel symbol-header">
+            <div style="display: flex; align-items: center; gap: 1.25rem;">
+                <img src="/static/images/logo_lakshmifx.png" style="height: 45px; border-radius: 6px; background: white; padding: 2px;" alt="LAKSHMIFX Logo">
+                <div style="width: 1px; height: 30px; background: rgba(255,255,255,0.15);"></div>
+                <img src="/static/images/logo_sarthifxm.png" style="height: 45px; border-radius: 6px;" alt="SARTHIFXM Logo">
+                <div style="margin-left: 0.5rem;">
+                    <h2 style="font-size: 1.1rem; font-weight: 800; font-family: var(--font-heading); color: #ffffff; letter-spacing: -0.2px;">Asset REAL-TIME ANALYTICS</h2>
+                    <p style="font-size: 0.65rem; color: var(--text-secondary); font-weight: 500;">Lakshmifx &amp; Sarthifxm Audit Console</p>
+                </div>
+            </div>
+            
+            <div class="status-badge" style="padding: 0.5rem 1rem;">
+                <div id="connection-dot" class="status-dot online"></div>
+                <div id="connection-text" class="status-text" style="color: var(--accent-emerald)">LIVE MT5 TICK</div>
+            </div>
+        </header>
+        
+        <!-- STANDALONE METRICS ROW -->
+        <div class="symbol-card-grid">
+            
+            <!-- Price Card -->
+            <div class="glass-panel metric-card cyan-card">
+                <div class="metric-header">
+                    <span>LIVE MIDPOINT PRICE</span>
+                    <i class="fa-solid fa-circle-nodes" style="color: var(--accent-cyan)"></i>
+                </div>
+                <div id="live-symbol-price" class="metric-value">0.00000</div>
+                <div id="live-symbol-change" class="metric-change">
+                    Ticking...
+                </div>
+            </div>
+            
+            <!-- High Card -->
+            <div class="glass-panel metric-card profit-card">
+                <div class="metric-header">
+                    <span>DAY HIGH (SESSION)</span>
+                    <i class="fa-solid fa-arrow-trend-up" style="color: var(--accent-emerald)"></i>
+                </div>
+                <div id="live-symbol-high" class="metric-value">0.00000</div>
+                <div class="metric-change" style="color: var(--text-secondary)">
+                    MT5 D1 Candle
+                </div>
+            </div>
+            
+            <!-- Low Card -->
+            <div class="glass-panel metric-card loss-card">
+                <div class="metric-header">
+                    <span>DAY LOW (SESSION)</span>
+                    <i class="fa-solid fa-arrow-trend-down" style="color: var(--accent-rose)"></i>
+                </div>
+                <div id="live-symbol-low" class="metric-value">0.00000</div>
+                <div class="metric-change" style="color: var(--text-secondary)">
+                    MT5 D1 Candle
+                </div>
+            </div>
+            
+            <!-- Allocation Weight Card -->
+            <div class="glass-panel metric-card violet-card">
+                <div class="metric-header">
+                    <span>PORTFOLIO WEIGHT</span>
+                    <i class="fa-solid fa-chart-pie" style="color: var(--accent-violet)"></i>
+                </div>
+                <div id="live-symbol-weight" class="metric-value">0%</div>
+                <div class="metric-change" style="color: var(--text-secondary)">
+                    Asset Allocation
+                </div>
+            </div>
+            
+        </div>
+        
+        <!-- STANDALONE PRICE ACTION CANDLESTICK CHART PANEL -->
+        <div class="glass-panel chart-panel" style="border-top: 4px solid var(--accent-cyan);">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <i class="fa-solid fa-chart-line text-muted"></i> 
+                    Live Price Action: <strong style="color: #ffffff;">Asset</strong>
+                </div>
+                <div class="chart-controls">
+                    <!-- Timeframe Selectors -->
+                    <button class="timeframe-pill" onclick="switchTimeframe('M1')">M1</button>
+                    <button class="timeframe-pill active" onclick="switchTimeframe('M5')">M5</button>
+                    <button class="timeframe-pill" onclick="switchTimeframe('M15')">M15</button>
+                    <button class="timeframe-pill" onclick="switchTimeframe('M30')">M30</button>
+                    <button class="timeframe-pill" onclick="switchTimeframe('H1')">H1</button>
+                    <button class="timeframe-pill" onclick="switchTimeframe('H4')">H4</button>
+                    <button class="timeframe-pill" onclick="switchTimeframe('D1')">D1</button>
+                </div>
+            </div>
+            
+            <div class="standalone-chart-container" id="standaloneChartContainer"></div>
+        </div>
+
+        <!-- STUNNING CORPORATE FOOTER -->
+        <footer class="glass-panel" style="padding: 2rem; border-top: 4px solid var(--accent-violet); background: linear-gradient(180deg, rgba(18, 26, 47, 0.4) 0%, rgba(6, 9, 19, 0.8) 100%);">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2.5rem; align-items: start;">
+                
+                <!-- Company Overview & Logos -->
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <img src="/static/images/logo_lakshmifx.png" style="height: 40px; border-radius: 6px; background: white; padding: 2px;" alt="LAKSHMIFX Logo">
+                        <div style="width: 1px; height: 25px; background: rgba(255,255,255,0.15);"></div>
+                        <img src="/static/images/logo_sarthifxm.png" style="height: 40px; border-radius: 6px;" alt="SARTHIFXM Logo">
+                    </div>
+                    <div>
+                        <strong style="color: #ffffff; font-size: 0.95rem; font-family: var(--font-heading); display: block; margin-bottom: 0.25rem;">LAKSHMIFX TRUSTLINE INDIA PVT. LTD.</strong>
+                        <strong style="color: var(--accent-cyan); font-size: 0.85rem; font-family: var(--font-heading); display: block;">SARTHIFXM CAPITAL LIMITED (LONDON)</strong>
+                    </div>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;">
+                        Empowering global traders with institutional-grade technology, real-time market access, and advanced automated trading solutions.
+                    </p>
+                </div>
+                
+                <!-- Quick Contacts -->
+                <div>
+                    <strong style="color: #ffffff; font-size: 0.85rem; font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem;">
+                        <i class="fa-solid fa-phone" style="color: var(--accent-cyan);"></i> Hotlines &amp; Support
+                    </strong>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <a href="tel:+918830844895" style="color: var(--text-primary); text-decoration: none; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; transition: var(--transition-smooth);" onmouseover="this.style.color='var(--accent-cyan)'" onmouseout="this.style.color='var(--text-primary)'">
+                            <i class="fa-solid fa-headset" style="color: var(--accent-emerald);"></i> +91 88308 44895
+                        </a>
+                        <a href="tel:+917675900188" style="color: var(--text-primary); text-decoration: none; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; transition: var(--transition-smooth);" onmouseover="this.style.color='var(--accent-cyan)'" onmouseout="this.style.color='var(--text-primary)'">
+                            <i class="fa-solid fa-headset" style="color: var(--accent-emerald);"></i> +91 76759 00188
+                        </a>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: flex-start; gap: 0.5rem; line-height: 1.4;">
+                            <i class="fa-solid fa-location-dot" style="color: var(--accent-rose); margin-top: 0.2rem;"></i>
+                            <span>
+                                <strong>Address:</strong> 105, 2nd floor, Balaji Arcade, 3-5-919 to 925, above bandhan bank, Venkata swamy Nagar, Himayatnagar, Hyderabad, Telangana 500029
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Digital Footprint -->
+                <div>
+                    <strong style="color: #ffffff; font-size: 0.85rem; font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem;">
+                        <i class="fa-solid fa-globe" style="color: var(--accent-violet);"></i> Web &amp; Emails
+                    </strong>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                            <a href="http://WWW.LAXMIFX.COM" target="_blank" style="color: var(--accent-cyan); text-decoration: none; font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; transition: var(--transition-smooth);" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                                <i class="fa-solid fa-up-right-from-square"></i> WWW.LAXMIFX.COM
+                            </a>
+                            <a href="http://WWW.SARTHIFXM.COM" target="_blank" style="color: var(--accent-cyan); text-decoration: none; font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; transition: var(--transition-smooth);" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                                <i class="fa-solid fa-up-right-from-square"></i> WWW.SARTHIFXM.COM
+                            </a>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.35rem; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 0.5rem;">
+                            <a href="mailto:PANKIT@LAXMIFX.COM" style="color: var(--text-primary); text-decoration: none; font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; transition: var(--transition-smooth);" onmouseover="this.style.color='var(--accent-cyan)'" onmouseout="this.style.color='var(--text-primary)'">
+                                <i class="fa-regular fa-envelope" style="color: var(--accent-amber);"></i> PANKIT@LAXMIFX.COM
+                            </a>
+                            <a href="mailto:INFO@LAXMIFX.COM" style="color: var(--text-primary); text-decoration: none; font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; transition: var(--transition-smooth);" onmouseover="this.style.color='var(--accent-cyan)'" onmouseout="this.style.color='var(--text-primary)'">
+                                <i class="fa-regular fa-envelope" style="color: var(--accent-amber);"></i> INFO@LAXMIFX.COM
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <div style="border-top: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1.5rem; padding-top: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; font-size: 0.7rem; color: var(--text-muted);">
+                <span>&copy; 2026 LAKSHMIFX TRUSTLINE INDIA PVT. LTD. &amp; SARTHIFXM CAPITAL LIMITED. All rights reserved.</span>
+            </div>
+        </footer>
+        
+    </div>
+
+    <!-- Script Implementation -->
+    <script>
+        const symbol = "Asset";
+        let timeframe = "M5";
+        let chart = null;
+        let candlestickSeries = null;
+        let pollInterval = null;
+        let dataPollInterval = null;
+        
+        document.addEventListener("DOMContentLoaded", () => {
+            // Initial render
+            refreshMetrics();
+            loadLiveCandles();
+            
+            // Poll price and highs/lows every 2 seconds
+            dataPollInterval = setInterval(refreshMetrics, 2000);
+            
+            // Poll chart candles every 5 seconds
+            pollInterval = setInterval(loadLiveCandles, 5000);
+        });
+        
+        async function refreshMetrics() {
+            try {
+                const response = await fetch("/api/portfolio");
+                const data = await response.json();
+                
+                if (data.success && data.portfolio) {
+                    const symData = data.portfolio.find(p => p.symbol === symbol);
+                    if (symData) {
+                        const priceEl = document.getElementById("live-symbol-price");
+                        const highEl = document.getElementById("live-symbol-high");
+                        const lowEl = document.getElementById("live-symbol-low");
+                        const weightEl = document.getElementById("live-symbol-weight");
+                        const changeEl = document.getElementById("live-symbol-change");
+                        
+                        // Price formatting based on asset
+                        const price = parseFloat(symData.price);
+                        const high = parseFloat(symData.high);
+                        const low = parseFloat(symData.low);
+                        const weight = parseFloat(symData.weight);
+                        const change = parseFloat(symData.change_pct);
+                        
+                        let formatStr = 5;
+                        if (symbol.includes("BTC")) formatStr = 2;
+                        else if (symbol.includes("OIL")) formatStr = 3;
+                        
+                        priceEl.textContent = symbol.includes("BTC") ? price.toLocaleString(undefined, {minimumFractionDigits: 2}) : price.toFixed(formatStr);
+                        highEl.textContent = symbol.includes("BTC") ? high.toLocaleString(undefined, {minimumFractionDigits: 2}) : high.toFixed(formatStr);
+                        lowEl.textContent = symbol.includes("BTC") ? low.toLocaleString(undefined, {minimumFractionDigits: 2}) : low.toFixed(formatStr);
+                        weightEl.textContent = `${weight.toFixed(0)}%`;
+                        
+                        changeEl.textContent = `${change >= 0 ? '▲' : '▼'} ${change >= 0 ? '+' : ''}${change.toFixed(2)}% Daily`;
+                        changeEl.className = `metric-change ${change >= 0 ? 'change-up' : 'change-down'}`;
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load symbol metrics:", e);
+            }
+        }
+        
+        function initChart() {
+            const container = document.getElementById("standaloneChartContainer");
+            container.innerHTML = '';
+            
+            const computedWidth = container.clientWidth || 1100;
+            const computedHeight = container.clientHeight || 480;
+            
+            chart = LightweightCharts.createChart(container, {
+                width: computedWidth,
+                height: computedHeight,
+                layout: {
+                    background: { type: 'solid', color: 'transparent' },
+                    textColor: '#94a3b8',
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: 11
+                },
+                grid: {
+                    vertLines: { color: 'rgba(255, 255, 255, 0.02)' },
+                    horzLines: { color: 'rgba(255, 255, 255, 0.02)' }
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                    vertLine: { color: 'rgba(6, 182, 212, 0.35)', width: 1, style: 3 },
+                    horzLine: { color: 'rgba(6, 182, 212, 0.35)', width: 1, style: 3 }
+                },
+                rightPriceScale: { borderColor: 'rgba(255, 255, 255, 0.06)' },
+                timeScale: { borderColor: 'rgba(255, 255, 255, 0.06)', timeVisible: true }
+            });
+            
+            candlestickSeries = chart.addCandlestickSeries({
+                upColor: '#10b981',
+                downColor: '#f43f5e',
+                borderUpColor: '#10b981',
+                borderDownColor: '#f43f5e',
+                wickUpColor: '#10b981',
+                wickDownColor: '#f43f5e'
+            });
+            
+            const resizeObserver = new ResizeObserver(entries => {
+                if (entries.length === 0 || !chart) return;
+                const { width, height } = entries[0].contentRect;
+                chart.resize(width, height);
+            });
+            resizeObserver.observe(container);
+        }
+        
+        async function loadLiveCandles() {
+            try {
+                const response = await fetch(`/api/candles?symbol=${symbol}&timeframe=${timeframe}&count=150`);
+                const data = await response.json();
+                
+                if (data.success && data.candles && data.candles.length > 0) {
+                    if (!chart) initChart();
+                    
+                    const formatted = data.candles.map(c => ({
+                        time: c.time,
+                        open: c.open,
+                        high: c.high,
+                        low: c.low,
+                        close: c.close
+                    }));
+                    
+                    formatted.sort((a, b) => a.time - b.time);
+                    candlestickSeries.setData(formatted);
+                    chart.timeScale().fitContent();
+                }
+            } catch (e) {
+                console.error("Failed to load candlestick chart:", e);
+            }
+        }
+        
+        function switchTimeframe(tf) {
+            timeframe = tf;
+            
+            const pills = document.querySelectorAll(".timeframe-pill");
+            pills.forEach(p => {
+                p.classList.remove("active");
+                if (p.textContent === tf) {
+                    p.classList.add("active");
+                }
+            });
+            
+            loadLiveCandles();
+        }
+    </script>
+</body>
+</html>

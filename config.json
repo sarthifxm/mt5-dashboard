@@ -1,0 +1,8 @@
+{
+  "telegram_bot_token": "8959900363:AAGVGFJMA_iCXez_jwoEa6nATnSkyhCx1Fo",
+  "telegram_chat_id": "-1003797295789",
+  "whatsapp_webhook": "",
+  "telegram_enabled": true,
+  "whatsapp_enabled": false,
+  "risk_multiplier": 1.0
+}

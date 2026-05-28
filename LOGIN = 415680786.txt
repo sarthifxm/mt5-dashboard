@@ -1,0 +1,3 @@
+LOGIN = 415680786
+PASSWORD = "Pmsp@1234"
+SERVER = "Exness-MT5Trial14"
