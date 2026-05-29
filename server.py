@@ -88,6 +88,7 @@ init_mt5()
 # =========================
 
 def send_telegram_alert(token, chat_id, message):
+    import ssl
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     data = json.dumps({
         "chat_id": chat_id,
@@ -96,17 +97,20 @@ def send_telegram_alert(token, chat_id, message):
     }).encode('utf-8')
     req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
     try:
-        with urllib.request.urlopen(req, timeout=5) as response:
+        context = ssl._create_unverified_context()
+        with urllib.request.urlopen(req, context=context, timeout=5) as response:
             return response.read()
     except Exception as e:
         print("Telegram alert error:", e)
         return None
 
 def send_whatsapp_alert(webhook_url, message):
+    import ssl
     data = json.dumps({"message": message}).encode('utf-8')
     req = urllib.request.Request(webhook_url, data=data, headers={'Content-Type': 'application/json'})
     try:
-        with urllib.request.urlopen(req, timeout=5) as response:
+        context = ssl._create_unverified_context()
+        with urllib.request.urlopen(req, context=context, timeout=5) as response:
             return response.read()
     except Exception as e:
         print("WhatsApp alert error:", e)
