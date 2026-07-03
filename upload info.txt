@@ -1,0 +1,49 @@
+To upload your updated files (like server.py, templates, or styles) to your Windows VPS, you have two excellent and easy methods.
+
+Here are the step-by-step instructions for both:
+
+Method 1: The RDP Copy-Paste Method (Fastest & Simplest)
+Because you are using Windows Remote Desktop (RDP), you can directly copy files from your local computer and paste them onto the VPS screen, just like copy-pasting a word document!
+
+Copy on Local PC:
+Open File Explorer on your local computer and navigate to C:\mt5.
+Right-click on server.py (or the static/template folders you changed) and select Copy (or press Ctrl + C).
+Paste on VPS:
+Click into your Remote Desktop (RDP) window to focus on your VPS screen.
+Open the file explorer on the VPS and go to C:\mt5.
+Right-click in the folder and select Paste (or press Ctrl + V).
+Select "Replace the file in the destination" when prompted!
+Restart Backend on VPS:
+Close the old Command Prompt window running your Flask server on the VPS (or press Ctrl + C inside it to stop it).
+Open a new Command Prompt on the VPS, navigate to the folder (cd C:\mt5), and run it again:
+cmd
+
+
+python server.py
+Method 2: The GitHub Sync Method (Professional & Safest)
+If you set up a private GitHub repository for your code, you can sync the changes securely with single-line commands.
+
+Push Changes from Local PC:
+Open Command Prompt on your local computer and run:
+cmd
+
+
+cd C:\mt5
+git add .
+git commit -m "feat: added forex intelligence hub and SSL alerts bypass"
+git push origin main
+Pull Changes on the VPS:
+Connect to your Windows VPS via Remote Desktop.
+Open Command Prompt on the VPS and run:
+cmd
+
+
+cd C:\mt5
+git pull origin main
+Restart Backend on VPS:
+Stop your running Python backend on the VPS (press Ctrl + C in the command prompt).
+Restart the server to load the new code:
+cmd
+
+
+python server.py

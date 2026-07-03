@@ -8,6 +8,13 @@ let selectedSymbol = 'EURUSD';
 let selectedTimeframe = 'M5';
 let pollInterval = null;
 
+// Risk & Overlay Cache
+let activeTradesCache = [];
+let activePriceLines = [];
+let lastOpenTradeTickets = null;
+let lastAdvisoryId = null;
+let previousProfitCache = {};
+
 // Dynamic Broker Asset Mapping Cache
 let brokerSymbolsCache = [];
 
@@ -104,6 +111,71 @@ function formatCurrency(value) {
     return `${num < 0 ? '-' : ''}$${formatted}`;
 }
 
+function playSound(type) {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        
+        if (type === 'open') {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+            gain.gain.setValueAtTime(0.08, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.15);
+            
+            setTimeout(() => {
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(659.25, ctx.currentTime); // E5
+                gain2.gain.setValueAtTime(0.08, ctx.currentTime);
+                gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+                osc2.start(ctx.currentTime);
+                osc2.stop(ctx.currentTime + 0.2);
+            }, 120);
+        } else if (type === 'close') {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+            gain.gain.setValueAtTime(0.08, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.35);
+        } else if (type === 'advisory') {
+            const notes = [440, 554, 659, 880];
+            notes.forEach((freq, i) => {
+                setTimeout(() => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.005, ctx.currentTime + 0.12);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.12);
+                }, i * 90);
+            });
+        }
+    } catch (e) {
+        console.log("Audio Context blocked or failed:", e);
+    }
+}
+
 
 
 // ----------------------------------------------------
@@ -132,6 +204,26 @@ async function loadSettings() {
             document.getElementById("telegram-enabled-toggle").checked = s.telegram_enabled || false;
             document.getElementById("whatsapp-enabled-toggle").checked = s.whatsapp_enabled || false;
             document.getElementById("multiplier-val").value = s.risk_multiplier || 1.0;
+            
+            // Risk Safeguards
+            const trailingToggle = document.getElementById("trailing-enabled-toggle");
+            if (trailingToggle) trailingToggle.checked = s.trailing_stop_enabled || false;
+            const trailingDist = document.getElementById("trailing-distance");
+            if (trailingDist) trailingDist.value = s.trailing_stop_distance || 20.0;
+            
+            const beToggle = document.getElementById("be-enabled-toggle");
+            if (beToggle) beToggle.checked = s.break_even_enabled || false;
+            const beAct = document.getElementById("be-activation");
+            if (beAct) beAct.value = s.break_even_activation || 15.0;
+            
+            toggleRiskFields();
+            
+            const mt5LoginEl = document.getElementById("mt5-login");
+            if (mt5LoginEl) mt5LoginEl.value = s.mt5_login || "";
+            const mt5PassEl = document.getElementById("mt5-password");
+            if (mt5PassEl) mt5PassEl.value = s.mt5_password || "";
+            const mt5ServerEl = document.getElementById("mt5-server");
+            if (mt5ServerEl) mt5ServerEl.value = s.mt5_server || "";
         }
     } catch (e) {
         console.error("Failed to load settings:", e);
@@ -163,6 +255,93 @@ async function saveAlertSettings() {
         }
     } catch (e) {
         showToast("Error connecting to server to save settings.", "error");
+    }
+}
+
+function toggleRiskFields() {
+    const trailingToggle = document.getElementById("trailing-enabled-toggle");
+    const beToggle = document.getElementById("be-enabled-toggle");
+    
+    const trailingGroup = document.getElementById("trailing-distance-group");
+    const beGroup = document.getElementById("be-activation-group");
+    
+    if (trailingGroup && trailingToggle) {
+        trailingGroup.style.display = trailingToggle.checked ? "block" : "none";
+    }
+    if (beGroup && beToggle) {
+        beGroup.style.display = beToggle.checked ? "block" : "none";
+    }
+}
+
+async function saveRiskSettings() {
+    const trailingToggle = document.getElementById("trailing-enabled-toggle");
+    const trailingDist = document.getElementById("trailing-distance");
+    const beToggle = document.getElementById("be-enabled-toggle");
+    const beAct = document.getElementById("be-activation");
+    
+    if (!trailingToggle || !beToggle) return;
+    
+    const settingsData = {
+        trailing_stop_enabled: trailingToggle.checked,
+        trailing_stop_distance: parseFloat(trailingDist.value) || 20.0,
+        break_even_enabled: beToggle.checked,
+        break_even_activation: parseFloat(beAct.value) || 15.0
+    };
+    
+    showToast("Saving risk safeguards settings...", "info");
+    
+    try {
+        const response = await fetch("/api/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(settingsData)
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast("Automated risk settings saved successfully!", "success");
+        } else {
+            showToast(data.message || "Failed to save risk safeguards.", "error");
+        }
+    } catch (e) {
+        showToast("Error connecting to server to save risk safeguards.", "error");
+    }
+}
+
+async function saveMT5Settings() {
+    const login = document.getElementById("mt5-login").value.trim();
+    const password = document.getElementById("mt5-password").value;
+    const server = document.getElementById("mt5-server").value.trim();
+    
+    if (!login || !password || !server) {
+        showToast("Please fill in all MT5 connection fields.", "error");
+        return;
+    }
+    
+    const settingsData = {
+        mt5_login: login,
+        mt5_password: password,
+        mt5_server: server
+    };
+    
+    showToast("Connecting to MT5 with new credentials...", "info");
+    
+    try {
+        const response = await fetch("/api/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(settingsData)
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(data.message || "MT5 Connection updated successfully!", "success");
+            refreshDashboard();
+        } else {
+            showToast(data.message || "Failed to update MT5 connection.", "error");
+        }
+    } catch (e) {
+        showToast("Error connecting to server to save MT5 config.", "error");
     }
 }
 
@@ -305,9 +484,32 @@ function updateMetricsDashboard(data) {
     
     document.getElementById("stat-profit-factor").textContent = data.profit_factor.toFixed(2);
     document.getElementById("stat-sharpe").textContent = data.sharpe_ratio.toFixed(2);
+    
+    const sortinoEl = document.getElementById("stat-sortino");
+    if (sortinoEl) {
+        sortinoEl.textContent = data.sortino_ratio.toFixed(2);
+    }
+    
     const drawdownEl = document.getElementById("stat-drawdown");
     if (drawdownEl) {
         drawdownEl.textContent = `${data.max_drawdown}%`;
+    }
+    
+    const recoveryEl = document.getElementById("stat-recovery");
+    if (recoveryEl) {
+        recoveryEl.textContent = data.recovery_factor.toFixed(2);
+    }
+
+    // Total Deposit
+    const depositsEl = document.getElementById("stat-total-deposits");
+    if (depositsEl) {
+        depositsEl.textContent = formatCurrency(data.total_deposits || 0);
+    }
+
+    // Total Withdrawal
+    const withdrawalsEl = document.getElementById("stat-total-withdrawals");
+    if (withdrawalsEl) {
+        withdrawalsEl.textContent = formatCurrency(data.total_withdrawals || 0);
     }
     
     updateSymbolDistributionList(data.symbol_distribution, data.total_trades);
@@ -379,12 +581,48 @@ async function refreshActivePositions() {
         
         let floatingPl = 0;
         
+        const currentTickets = data.trades ? data.trades.map(t => t.ticket) : [];
+        if (lastOpenTradeTickets !== null) {
+            const opened = currentTickets.filter(x => !lastOpenTradeTickets.includes(x));
+            const closed = lastOpenTradeTickets.filter(x => !currentTickets.includes(x));
+            
+            if (opened.length > 0) playSound('open');
+            else if (closed.length > 0) playSound('close');
+        }
+        lastOpenTradeTickets = currentTickets;
+        activeTradesCache = data.trades || [];
+        
+        if (currentChartMode === 'candles') {
+            updateChartPriceLines();
+        }
+        
         if (data.success && data.trades && data.trades.length > 0) {
+            // Clean up closed tickets from cache
+            const cacheKeys = Object.keys(previousProfitCache);
+            cacheKeys.forEach(k => {
+                const ticketNum = parseInt(k);
+                if (!currentTickets.includes(ticketNum)) {
+                    delete previousProfitCache[k];
+                }
+            });
+
             let html = '';
             data.trades.forEach(t => {
                 floatingPl += parseFloat(t.profit);
                 const isBuy = t.type === 'BUY';
                 const pClass = t.profit >= 0 ? 'profit-positive' : 'profit-negative';
+                
+                // Tick Flash logic
+                let flashClass = '';
+                const prevVal = previousProfitCache[t.ticket];
+                if (prevVal !== undefined) {
+                    if (t.profit > prevVal) {
+                        flashClass = 'flash-up';
+                    } else if (t.profit < prevVal) {
+                        flashClass = 'flash-down';
+                    }
+                }
+                previousProfitCache[t.ticket] = t.profit;
                 
                 const shareText = encodeURIComponent(
                     `📊 *Jetro AI Live Trade Alert*\n\n` +
@@ -397,7 +635,7 @@ async function refreshActivePositions() {
                 );
                 
                 html += `
-                    <tr>
+                    <tr class="${flashClass}">
                         <td>#${t.ticket}</td>
                         <td style="font-weight: 700;">${t.symbol}</td>
                         <td><span class="badge-type ${isBuy ? 'badge-buy' : 'badge-sell'}">${t.type}</span></td>
@@ -419,6 +657,8 @@ async function refreshActivePositions() {
             
             tbody.innerHTML = html;
         } else {
+            // Reset cache if no positions are active
+            previousProfitCache = {};
             tbody.innerHTML = `
                 <tr>
                     <td colspan="10" class="empty-state">
@@ -646,6 +886,7 @@ function drawSparkline(canvasId, data, isUp) {
 // ----------------------------------------------------
 
 let editingAdvisoryId = null;
+let advisoryListCache = [];
 
 async function loadAdvisoryFeed() {
     try {
@@ -655,18 +896,46 @@ async function loadAdvisoryFeed() {
         const feed = document.getElementById("advisory-feed");
         
         if (data.success && data.advisories && data.advisories.length > 0) {
+            advisoryListCache = data.advisories;
+            
+            // Audio alert trigger on new advisory broadcast
+            const latestId = data.advisories[0].id;
+            if (lastAdvisoryId !== null && latestId > lastAdvisoryId) {
+                playSound('advisory');
+            }
+            lastAdvisoryId = latestId;
+            
             let html = '';
             const isAdmin = document.getElementById("advisory-title") !== null;
             
             data.advisories.forEach(adv => {
                 html += `
-                    <div id="advisory-card-${adv.id}" style="background: rgba(15, 23, 42, 0.55); padding: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.03); position: relative;">
+                    <div id="advisory-card-${adv.id}" style="background: rgba(15, 23, 42, 0.55); padding: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.03); position: relative; margin-bottom: 0.25rem;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem;">
                             <strong style="font-size: 0.8rem; font-family: var(--font-heading); color: #ffffff;">${adv.title}</strong>
                             <span style="font-size: 0.65rem; color: var(--text-muted);">${adv.timestamp}</span>
                         </div>
                         <p style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.5rem; white-space: pre-wrap;">${adv.text}</p>
                 `;
+                
+                if (adv.is_signal) {
+                    html += `
+                        <div style="background: rgba(139, 92, 246, 0.08); border: 1px dashed rgba(139, 92, 246, 0.3); padding: 0.75rem; border-radius: 6px; margin: 0.5rem 0; font-size: 0.75rem;">
+                            <strong style="color: var(--accent-violet);"><i class="fa-solid fa-signal"></i> ACTIVE SIGNAL ALERT</strong>
+                            <div style="margin-top: 0.35rem; display: flex; flex-direction: column; gap: 0.2rem;">
+                                <div><span style="color: var(--text-secondary);">Asset/Direction:</span> <strong>${adv.signal_type} ${adv.signal_symbol}</strong></div>
+                                <div><span style="color: var(--text-secondary);">Lots/Volume:</span> <strong>${adv.signal_volume} lots</strong></div>
+                                <div>
+                                    <span style="color: var(--text-secondary); margin-right: 0.75rem;">SL: <strong style="color: var(--accent-rose);">${adv.signal_sl > 0 ? adv.signal_sl.toFixed(5) : 'None'}</strong></span>
+                                    <span>TP: <strong style="color: var(--accent-emerald);">${adv.signal_tp > 0 ? adv.signal_tp.toFixed(5) : 'None'}</strong></span>
+                                </div>
+                            </div>
+                            <button class="btn-primary btn-mini" style="margin-top: 0.6rem; border-radius: 4px; padding: 0.35rem 0.75rem; font-size: 0.7rem; background: var(--accent-violet); border-color: var(--accent-violet); width: auto; height: auto;" onclick="copyTradeSignal('${adv.signal_symbol}', '${adv.signal_type}', ${adv.signal_volume}, ${adv.signal_sl}, ${adv.signal_tp})">
+                                <i class="fa-solid fa-bolt"></i> Copy Trade Signal
+                            </button>
+                        </div>
+                    `;
+                }
                 
                 if (adv.audio_url) {
                     html += `
@@ -680,12 +949,9 @@ async function loadAdvisoryFeed() {
                 }
                 
                 if (isAdmin) {
-                    // Safe strings for javascript function call
-                    const safeTitle = adv.title.replace(/'/g, "\\'");
-                    const safeText = adv.text.replace(/'/g, "\\'").replace(/\n/g, "\\n");
                     html += `
                         <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 0.5rem;">
-                            <button class="chart-btn btn-mini" style="background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.3); color: var(--accent-violet);" onclick="editAdvisory(${adv.id}, '${safeTitle}', '${safeText}', ${adv.audio_url ? 'true' : 'false'})"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
+                            <button class="chart-btn btn-mini" style="background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.3); color: var(--accent-violet);" onclick="editAdvisory(${adv.id})"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
                             <button class="chart-btn btn-mini" style="background: rgba(244, 63, 94, 0.15); border-color: rgba(244, 63, 94, 0.3); color: var(--accent-rose);" onclick="deleteAdvisory(${adv.id})"><i class="fa-solid fa-trash"></i> Delete</button>
                         </div>
                     `;
@@ -707,11 +973,35 @@ async function loadAdvisoryFeed() {
     }
 }
 
-function editAdvisory(id, title, text, hasAudio) {
+function toggleSignalFields(checked) {
+    const grid = document.getElementById("signal-fields-grid");
+    if (grid) {
+        grid.style.display = checked ? "grid" : "none";
+    }
+}
+
+function editAdvisory(id) {
+    const adv = advisoryListCache.find(x => x.id === id);
+    if (!adv) return;
+    
     editingAdvisoryId = id;
     
-    document.getElementById("advisory-title").value = title;
-    document.getElementById("advisory-text").value = text;
+    document.getElementById("advisory-title").value = adv.title;
+    document.getElementById("advisory-text").value = adv.text;
+    
+    const isSignalBox = document.getElementById("advisory-is-signal");
+    if (isSignalBox) {
+        isSignalBox.checked = adv.is_signal || false;
+        toggleSignalFields(adv.is_signal || false);
+        
+        if (adv.is_signal) {
+            document.getElementById("signal-symbol").value = adv.signal_symbol || "EURUSD";
+            document.getElementById("signal-type").value = adv.signal_type || "BUY";
+            document.getElementById("signal-volume").value = adv.signal_volume || "0.01";
+            document.getElementById("signal-sl").value = adv.signal_sl || "";
+            document.getElementById("signal-tp").value = adv.signal_tp || "";
+        }
+    }
     
     document.getElementById("advisory-form-title").innerHTML = `<i class="fa-solid fa-microphone-lines"></i> Edit Advisory #${id}`;
     document.getElementById("advisory-submit-btn").innerHTML = `<i class="fa-solid fa-circle-check"></i> Save Changes`;
@@ -721,12 +1011,12 @@ function editAdvisory(id, title, text, hasAudio) {
     
     const audioIndicator = document.getElementById("edit-audio-indicator");
     if (audioIndicator) {
-        audioIndicator.style.display = hasAudio ? "block" : "none";
+        audioIndicator.style.display = adv.audio_url ? "block" : "none";
         document.getElementById("remove-audio-checkbox").checked = false;
     }
     
     document.getElementById("advisory-title").focus();
-    showToast(`Editing advisory: "${title}"`, "info");
+    showToast(`Editing advisory: "${adv.title}"`, "info");
 }
 
 function cancelAdvisoryEdit() {
@@ -735,6 +1025,17 @@ function cancelAdvisoryEdit() {
     document.getElementById("advisory-title").value = "";
     document.getElementById("advisory-text").value = "";
     document.getElementById("advisory-audio").value = "";
+    
+    const isSignalBox = document.getElementById("advisory-is-signal");
+    if (isSignalBox) {
+        isSignalBox.checked = false;
+        toggleSignalFields(false);
+        document.getElementById("signal-symbol").value = "EURUSD";
+        document.getElementById("signal-type").value = "BUY";
+        document.getElementById("signal-volume").value = "0.01";
+        document.getElementById("signal-sl").value = "";
+        document.getElementById("signal-tp").value = "";
+    }
     
     document.getElementById("advisory-form-title").innerHTML = `<i class="fa-solid fa-microphone"></i> Broadcast New Advisory`;
     document.getElementById("advisory-submit-btn").innerHTML = `<i class="fa-solid fa-paper-plane"></i> Publish Advisory`;
@@ -790,6 +1091,19 @@ async function broadcastAdvisory() {
     formData.append("title", title || "Live Trading Advisory call");
     formData.append("text", text);
     
+    // Add signal parameters if signal checked
+    const isSignalBox = document.getElementById("advisory-is-signal");
+    if (isSignalBox && isSignalBox.checked) {
+        formData.append("is_signal", "true");
+        formData.append("signal_symbol", document.getElementById("signal-symbol").value);
+        formData.append("signal_type", document.getElementById("signal-type").value);
+        formData.append("signal_volume", document.getElementById("signal-volume").value);
+        formData.append("signal_sl", document.getElementById("signal-sl").value || "0.0");
+        formData.append("signal_tp", document.getElementById("signal-tp").value || "0.0");
+    } else {
+        formData.append("is_signal", "false");
+    }
+    
     if (audioInput.files && audioInput.files[0]) {
         formData.append("audio", audioInput.files[0]);
     }
@@ -826,6 +1140,74 @@ async function broadcastAdvisory() {
         }
     } catch (e) {
         showToast("Error uploading advisory request.", "error");
+    }
+}
+
+async function copyTradeSignal(symbol, type, volume, sl, tp) {
+    const msg = `⚡ Copy Trade Signal Alert:\n\nAsset: ${symbol}\nType: ${type}\nVolume: ${volume} Lots\n\nExecute trade on your MT5 Terminal?`;
+    if (!confirm(msg)) {
+        return;
+    }
+    
+    showToast(`Sending copy trade order for ${symbol}...`, "info");
+    
+    try {
+        const response = await fetch("/api/trade/execute", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbol, type, volume, sl, tp })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(data.message || "Trade executed successfully!", "success");
+            refreshDashboard();
+        } else {
+            showToast(data.error || "Execution failed.", "error");
+        }
+    } catch (e) {
+        showToast("Network error executing copy trade.", "error");
+    }
+}
+
+async function executeQuickTrade(action) {
+    const symbol = document.getElementById("quick-order-symbol").value;
+    const volume = parseFloat(document.getElementById("quick-order-volume").value) || 0.01;
+    const slInput = document.getElementById("quick-order-sl").value;
+    const tpInput = document.getElementById("quick-order-tp").value;
+    
+    const sl = slInput ? parseFloat(slInput) : 0.0;
+    const tp = tpInput ? parseFloat(tpInput) : 0.0;
+    
+    const confirmMsg = `⚡ One-Click Trade Confirmation:\n\nAction: ${action}\nAsset: ${symbol}\nVolume: ${volume} Lots\nSL: ${sl > 0 ? sl : 'None'}\nTP: ${tp > 0 ? tp : 'None'}\n\nExecute trade on MT5?`;
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+    
+    showToast(`Submitting ${action} quick order for ${symbol}...`, "info");
+    
+    try {
+        const response = await fetch("/api/admin/trade", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbol, type: action, volume, sl, tp })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            playSound('open');
+            showToast(data.message || `Successfully executed ${action} Quick Order!`, "success");
+            
+            // Clear SL and TP values
+            document.getElementById("quick-order-sl").value = "";
+            document.getElementById("quick-order-tp").value = "";
+            
+            refreshDashboard();
+        } else {
+            showToast(data.error || "Quick order execution failed.", "error");
+        }
+    } catch (e) {
+        showToast("Network error executing quick order.", "error");
     }
 }
 
@@ -1001,6 +1383,68 @@ function renderLiveCandleChart(candles) {
     
     candlestickSeries.setData(formatted);
     chart.timeScale().fitContent();
+    
+    updateChartPriceLines();
+}
+
+function updateChartPriceLines() {
+    if (currentChartMode !== 'candles' || !candlestickSeries) return;
+    
+    activePriceLines.forEach(line => {
+        try {
+            candlestickSeries.removePriceLine(line);
+        } catch (e) {
+            console.error("Error removing price line:", e);
+        }
+    });
+    activePriceLines = [];
+    
+    // Find matching trades for selectedSymbol (stripping broker suffixes like 'm' if needed)
+    const normalizedSelected = selectedSymbol.replace(/[a-z]$/, '').toUpperCase();
+    
+    const matched = activeTradesCache.filter(t => {
+        const normTradeSym = t.symbol.replace(/[a-z]$/, '').toUpperCase();
+        return normTradeSym === normalizedSelected;
+    });
+    
+    matched.forEach(t => {
+        // Entry line (Cyan)
+        const openLine = candlestickSeries.createPriceLine({
+            price: t.open_price,
+            color: '#06b6d4',
+            lineWidth: 2,
+            lineStyle: 2, // Dashed
+            axisLabelVisible: true,
+            title: `${t.type} Entry #${t.ticket}`
+        });
+        activePriceLines.push(openLine);
+        
+        // SL line (Red)
+        if (t.sl > 0) {
+            const slLine = candlestickSeries.createPriceLine({
+                price: t.sl,
+                color: '#f43f5e',
+                lineWidth: 1.5,
+                lineStyle: 3, // Dotted
+                axisLabelVisible: true,
+                title: `SL Target`
+            });
+            activePriceLines.push(slLine);
+        }
+        
+        // TP line (Green)
+        if (t.tp > 0) {
+            const tpLine = candlestickSeries.createPriceLine({
+                price: t.tp,
+                color: '#10b981',
+                lineWidth: 1.5,
+                lineStyle: 3, // Dotted
+                axisLabelVisible: true,
+                title: `TP Target`
+            });
+            activePriceLines.push(tpLine);
+        }
+    });
 }
 
 // INTERVAL TRIGGER FOR CANDLES IF SELECTED

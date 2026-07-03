@@ -35,7 +35,14 @@ def load_config():
         "whatsapp_enabled": False,
         "risk_multiplier": 1.0,
         "admin_user": "admin",
-        "admin_pass": "JetroAdmin2026"
+        "admin_pass": "JetroAdmin2026",
+        "mt5_login": 433808540,
+        "mt5_password": "Pmsp@1234",
+        "mt5_server": "Exness-MT5Trial7",
+        "trailing_stop_enabled": False,
+        "trailing_stop_distance": 20.0,
+        "break_even_enabled": False,
+        "break_even_activation": 15.0
     }
     if os.path.exists(CONFIG_PATH):
         try:
@@ -59,26 +66,46 @@ def save_config(config_data):
 # MT5 LOGIN DETAILS
 # =========================
 
-LOGIN = 415680786
+LOGIN = 433808540
 PASSWORD = "Pmsp@1234"
-SERVER = "Exness-MT5Trial14"
+SERVER = "Exness-MT5Trial7"
 
-def init_mt5():
-    if not mt5.initialize():
-        print("MT5 Initialize Failed:", mt5.last_error())
-        return False
+def ensure_mt5_login():
+    global LOGIN, PASSWORD, SERVER
+    config = load_config()
+    LOGIN = config.get("mt5_login", LOGIN)
+    PASSWORD = config.get("mt5_password", PASSWORD)
+    SERVER = config.get("mt5_server", SERVER)
     
+    # Try converting LOGIN to integer if possible
+    try:
+        LOGIN = int(LOGIN)
+    except (ValueError, TypeError):
+        pass
+
+    if not mt5.initialize():
+        print("MT5 Initialize Failed in ensure_mt5_login:", mt5.last_error())
+        return False
+        
+    # Check if already logged into correct login
+    acc_info = mt5.account_info()
+    if acc_info is not None and acc_info.login == LOGIN:
+        return True
+
     authorized = mt5.login(
         LOGIN,
         password=PASSWORD,
         server=SERVER
     )
     if authorized:
-        print("MT5 Login Successful")
+        print(f"MT5 Login Successful for account {LOGIN}")
         return True
     else:
-        print("MT5 Login Failed:", mt5.last_error())
+        print(f"MT5 Login Failed for account {LOGIN}:", mt5.last_error())
         return False
+
+def init_mt5():
+    return ensure_mt5_login()
 
 # Try initializing on startup
 init_mt5()
@@ -142,6 +169,103 @@ def trigger_alerts(message):
         send_whatsapp_alert(config["whatsapp_webhook"], whatsapp_msg)
 
 # =========================
+# RISK SAFEGUARDS: TRAILING STOPS & BREAK EVEN
+# =========================
+
+def process_trailing_stops():
+    try:
+        config = load_config()
+        trailing_enabled = config.get("trailing_stop_enabled", False)
+        be_enabled = config.get("break_even_enabled", False)
+        
+        if not (trailing_enabled or be_enabled):
+            return
+            
+        trailing_dist_pips = float(config.get("trailing_stop_distance", 20.0))
+        be_activation_pips = float(config.get("break_even_activation", 15.0))
+        
+        positions = mt5.positions_get()
+        if not positions:
+            return
+            
+        for p in positions:
+            symbol = p.symbol
+            sym_info = mt5.symbol_info(symbol)
+            if not sym_info:
+                continue
+                
+            # Point and pip sizing
+            point = sym_info.point
+            pip_size = point * 10 if sym_info.digits in (3, 5) else point
+            
+            # Distance calculations
+            trailing_dist = trailing_dist_pips * pip_size
+            be_activation = be_activation_pips * pip_size
+            
+            # Position details
+            ticket = p.ticket
+            open_price = p.price_open
+            current_sl = p.sl
+            current_tp = p.tp
+            
+            # Get current bid/ask
+            tick = mt5.symbol_info_tick(symbol)
+            if not tick:
+                continue
+            
+            current_price = tick.bid if p.type == 0 else tick.ask # 0 = BUY, 1 = SELL
+            
+            new_sl = 0.0
+            
+            if p.type == 0:  # BUY
+                # Break-even check
+                if be_enabled and current_sl < open_price:
+                    if (current_price - open_price) >= be_activation:
+                        new_sl = open_price
+                        
+                # Trailing stop check
+                if trailing_enabled:
+                    potential_sl = current_price - trailing_dist
+                    if potential_sl > open_price:
+                        if current_sl == 0 or potential_sl > current_sl:
+                            if new_sl == 0.0 or potential_sl > new_sl:
+                                new_sl = potential_sl
+                                
+            elif p.type == 1:  # SELL
+                # Break-even check
+                if be_enabled and (current_sl == 0 or current_sl > open_price):
+                    if (open_price - current_price) >= be_activation:
+                        new_sl = open_price
+                        
+                # Trailing stop check
+                if trailing_enabled:
+                    potential_sl = current_price + trailing_dist
+                    if potential_sl < open_price:
+                        if current_sl == 0 or potential_sl < current_sl:
+                            if new_sl == 0.0 or potential_sl < new_sl:
+                                new_sl = potential_sl
+                                
+            # Apply SL update if calculated
+            if new_sl > 0.0 and abs(new_sl - current_sl) > 0.00001:
+                # Round to symbol digits
+                new_sl = round(new_sl, sym_info.digits)
+                request = {
+                    "action": mt5.TRADE_ACTION_SLTP,
+                    "position": ticket,
+                    "symbol": symbol,
+                    "sl": new_sl,
+                    "tp": current_tp
+                }
+                res = mt5.order_send(request)
+                if res and res.retcode == mt5.TRADE_RETCODE_DONE:
+                    print(f"[Trailing Stop] Updated SL for ticket #{ticket} to {new_sl}")
+                    trigger_alerts(f"🛡️ <b>AUTOMATED RISK SHIELD</b><br>Stop Loss for trade #{ticket} ({symbol}) adjusted to <b>{new_sl:.5f}</b>.")
+                else:
+                    print(f"[Trailing Stop] Failed to update SL for ticket #{ticket}: {res.comment if res else 'No response'}")
+    except Exception as e:
+        print("Error in process_trailing_stops:", e)
+
+# =========================
 # BACKGROUND TRADE POLLER
 # =========================
 
@@ -153,11 +277,12 @@ def trade_poller():
     
     while True:
         try:
-            if not mt5.initialize():
+            if not ensure_mt5_login():
                 time.sleep(5)
                 continue
                 
             positions = mt5.positions_get()
+            process_trailing_stops()
             current_tickets = set()
             
             if positions is not None:
@@ -313,8 +438,8 @@ def report_daily_pl():
 
 @app.route("/api/account")
 def account():
-    if not mt5.initialize():
-        return jsonify({"success": False, "error": "MT5 terminal offline"})
+    if not ensure_mt5_login():
+        return jsonify({"success": False, "error": "MT5 terminal offline or login failed"})
         
     account = mt5.account_info()
     if account is None:
@@ -337,8 +462,8 @@ def account():
 
 @app.route("/api/open-trades")
 def open_trades():
-    if not mt5.initialize():
-        return jsonify({"success": False, "error": "MT5 terminal offline"})
+    if not ensure_mt5_login():
+        return jsonify({"success": False, "error": "MT5 terminal offline or login failed"})
 
     positions = mt5.positions_get()
     trades = []
@@ -365,8 +490,8 @@ def open_trades():
 
 @app.route("/api/history")
 def history():
-    if not mt5.initialize():
-        return jsonify({"success": False, "error": "MT5 terminal offline"})
+    if not ensure_mt5_login():
+        return jsonify({"success": False, "error": "MT5 terminal offline or login failed"})
 
     start = datetime(2000, 1, 1)
     end = datetime.now()
@@ -397,8 +522,8 @@ def history():
 
 @app.route("/api/advanced-analytics")
 def advanced_analytics():
-    if not mt5.initialize():
-        return jsonify({"success": False, "error": "MT5 terminal offline"})
+    if not ensure_mt5_login():
+        return jsonify({"success": False, "error": "MT5 terminal offline or login failed"})
         
     start_history = datetime(2000, 1, 1)
     end_now = datetime.now()
@@ -418,6 +543,8 @@ def advanced_analytics():
             "profit_factor": 0,
             "max_drawdown": 0,
             "sharpe_ratio": 0,
+            "sortino_ratio": 0,
+            "recovery_factor": 0,
             "equity_curve": [{"time": datetime.now().strftime("%Y-%m-%d"), "balance": bal}],
             "symbol_distribution": [],
             "daily_profit": [],
@@ -467,6 +594,7 @@ def advanced_analytics():
     
     peak_balance = current_balance
     max_drawdown = 0
+    max_drawdown_amt = 0
     
     for d in deals_sorted:
         deal_time = datetime.fromtimestamp(d.time)
@@ -505,6 +633,9 @@ def advanced_analytics():
                         dd = ((peak_balance - current_balance) / peak_balance) * 100
                         if dd > max_drawdown:
                             max_drawdown = dd
+                        dd_amt = peak_balance - current_balance
+                        if dd_amt > max_drawdown_amt:
+                            max_drawdown_amt = dd_amt
                             
                 equity_curve.append({"time": deal_time_str, "balance": round(current_balance, 2)})
                 
@@ -541,6 +672,24 @@ def advanced_analytics():
         if std_dev > 0:
             sharpe_ratio = avg_profit / std_dev
 
+    # Sortino ratio calculation
+    sortino_ratio = 0
+    negative_profits = [x for x in trade_profits if x < 0]
+    if len(negative_profits) > 1:
+        avg_profit = sum(trade_profits) / len(trade_profits)
+        downside_variance = sum(x ** 2 for x in negative_profits) / len(trade_profits)
+        downside_dev = math.sqrt(downside_variance)
+        if downside_dev > 0:
+            sortino_ratio = avg_profit / downside_dev
+    elif len(trade_profits) > 0 and not negative_profits:
+        sortino_ratio = 99.9  # No losing trades
+
+    # Recovery Factor calculation
+    recovery_factor = 0
+    net_profit = round(current_balance - baseline_balance - (deposits - withdrawals), 2)
+    if max_drawdown_amt > 0:
+        recovery_factor = net_profit / max_drawdown_amt
+
     daily_list = [{"date": k, "profit": round(v, 2)} for k, v in sorted(daily_data.items())]
     monthly_list = [{"month": k, "profit": round(v, 2)} for k, v in sorted(monthly_data.items())]
     symbol_dist = [{"symbol": k, "trades": v} for k, v in symbol_counts.items()]
@@ -551,16 +700,20 @@ def advanced_analytics():
         "success": True,
         "balance": account_info.balance if account_info else current_balance,
         "equity": account_info.equity if account_info else current_balance,
-        "net_profit": round(current_balance - baseline_balance - (deposits - withdrawals), 2),
+        "net_profit": net_profit,
         "total_trades": total_trades,
         "win_rate": round(win_rate, 1),
         "profit_factor": round(profit_factor, 2),
         "max_drawdown": round(max_drawdown, 2),
         "sharpe_ratio": round(sharpe_ratio, 2),
+        "sortino_ratio": round(sortino_ratio, 2),
+        "recovery_factor": round(recovery_factor, 2),
         "equity_curve": equity_curve,
         "symbol_distribution": symbol_dist,
         "daily_profit": daily_list,
-        "monthly_profit": monthly_list
+        "monthly_profit": monthly_list,
+        "total_deposits": round(deposits, 2),
+        "total_withdrawals": round(withdrawals, 2)
     })
 
 @app.route("/api/candles")
@@ -581,8 +734,8 @@ def get_candles():
     
     tf = tf_mapping.get(timeframe_str.upper(), mt5.TIMEFRAME_M5)
     
-    if not mt5.initialize():
-        return jsonify({"success": False, "error": "MT5 not initialized"})
+    if not ensure_mt5_login():
+        return jsonify({"success": False, "error": "MT5 not initialized or login failed"})
         
     # Guarantee symbol is selected in Market Watch (crucial for Exness suffix models)
     mt5.symbol_select(symbol, True)
@@ -611,8 +764,8 @@ def get_candles():
 
 @app.route("/api/symbols")
 def get_symbols():
-    if not mt5.initialize():
-        return jsonify({"success": False, "error": "MT5 not initialized"})
+    if not ensure_mt5_login():
+        return jsonify({"success": False, "error": "MT5 not initialized or login failed"})
         
     symbols = mt5.symbols_get()
     if symbols is None:
@@ -650,8 +803,33 @@ def settings():
         config["whatsapp_enabled"] = bool(data.get("whatsapp_enabled", False))
         config["risk_multiplier"] = float(data.get("risk_multiplier", 1.0))
         
+        # Risk Safeguards Configurations
+        if "trailing_stop_enabled" in data:
+            config["trailing_stop_enabled"] = bool(data.get("trailing_stop_enabled", False))
+        if "trailing_stop_distance" in data:
+            config["trailing_stop_distance"] = float(data.get("trailing_stop_distance", 20.0))
+        if "break_even_enabled" in data:
+            config["break_even_enabled"] = bool(data.get("break_even_enabled", False))
+        if "break_even_activation" in data:
+            config["break_even_activation"] = float(data.get("break_even_activation", 15.0))
+            
+        # MT5 Credentials
+        if "mt5_login" in data:
+            config["mt5_login"] = data.get("mt5_login")
+        if "mt5_password" in data:
+            config["mt5_password"] = data.get("mt5_password")
+        if "mt5_server" in data:
+            config["mt5_server"] = data.get("mt5_server")
+        
         if save_config(config):
-            return jsonify({"success": True, "message": "Settings updated successfully"})
+            connection_status = init_mt5()
+            msg = "Settings updated successfully"
+            if "mt5_login" in data or "mt5_password" in data or "mt5_server" in data:
+                if connection_status:
+                    msg = "MT5 credentials updated and connected successfully!"
+                else:
+                    msg = "MT5 credentials updated, but terminal login failed. Please check logs."
+            return jsonify({"success": True, "message": msg})
         else:
             return jsonify({"success": False, "message": "Failed to save settings"})
 
@@ -725,6 +903,29 @@ def advisory_calls():
         title = request.form.get("title", "Live Broadcast Analysis")
         text = request.form.get("text", "")
         
+        # Parse signal attributes
+        is_signal = request.form.get("is_signal") == "true"
+        signal_symbol = request.form.get("signal_symbol", "")
+        signal_type = request.form.get("signal_type", "")
+        
+        signal_volume = 0.01
+        try:
+            signal_volume = float(request.form.get("signal_volume", "0.01"))
+        except (ValueError, TypeError):
+            pass
+            
+        signal_sl = 0.0
+        try:
+            signal_sl = float(request.form.get("signal_sl", "0.0"))
+        except (ValueError, TypeError):
+            pass
+            
+        signal_tp = 0.0
+        try:
+            signal_tp = float(request.form.get("signal_tp", "0.0"))
+        except (ValueError, TypeError):
+            pass
+        
         audio_file = request.files.get("audio")
         audio_url = None
         
@@ -744,7 +945,13 @@ def advisory_calls():
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "title": title,
             "text": text,
-            "audio_url": audio_url
+            "audio_url": audio_url,
+            "is_signal": is_signal,
+            "signal_symbol": signal_symbol,
+            "signal_type": signal_type,
+            "signal_volume": signal_volume,
+            "signal_sl": signal_sl,
+            "signal_tp": signal_tp
         }
         
         try:
@@ -846,6 +1053,36 @@ def manage_single_advisory(advisory_id):
         calls[idx]["text"] = text
         calls[idx]["timestamp"] = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Edited)"
         
+        # Parse signal attributes if present
+        is_signal = request.form.get("is_signal") == "true"
+        signal_symbol = request.form.get("signal_symbol", "")
+        signal_type = request.form.get("signal_type", "")
+        
+        signal_volume = 0.01
+        try:
+            signal_volume = float(request.form.get("signal_volume", "0.01"))
+        except (ValueError, TypeError):
+            pass
+            
+        signal_sl = 0.0
+        try:
+            signal_sl = float(request.form.get("signal_sl", "0.0"))
+        except (ValueError, TypeError):
+            pass
+            
+        signal_tp = 0.0
+        try:
+            signal_tp = float(request.form.get("signal_tp", "0.0"))
+        except (ValueError, TypeError):
+            pass
+            
+        calls[idx]["is_signal"] = is_signal
+        calls[idx]["signal_symbol"] = signal_symbol
+        calls[idx]["signal_type"] = signal_type
+        calls[idx]["signal_volume"] = signal_volume
+        calls[idx]["signal_sl"] = signal_sl
+        calls[idx]["signal_tp"] = signal_tp
+        
         try:
             with open(advisory_file, "w") as f:
                 json.dump(calls, f, indent=2)
@@ -854,13 +1091,229 @@ def manage_single_advisory(advisory_id):
             return jsonify({"success": False, "error": str(e)})
 
 # =========================
+# LIVE TRADING EXECUTION & PANIC CONTROLS
+# =========================
+
+@app.route("/api/admin/close-all", methods=["POST"])
+def admin_close_all():
+    if not session.get("admin_logged_in"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+        
+    if not ensure_mt5_login():
+        return jsonify({"success": False, "error": "MT5 terminal offline"})
+        
+    positions = mt5.positions_get()
+    if not positions:
+        return jsonify({"success": True, "message": "No open positions to close"})
+        
+    closed_tickets = []
+    errors = []
+    
+    for p in positions:
+        action_type = mt5.ORDER_TYPE_SELL if p.type == 0 else mt5.ORDER_TYPE_BUY
+        tick = mt5.symbol_info_tick(p.symbol)
+        if not tick:
+            errors.append(f"Ticket #{p.ticket} ({p.symbol}): Cannot fetch tick quote")
+            continue
+            
+        price = tick.bid if p.type == 0 else tick.ask
+        
+        request = {
+            "action": mt5.TRADE_ACTION_DEAL,
+            "position": p.ticket,
+            "symbol": p.symbol,
+            "volume": p.volume,
+            "type": action_type,
+            "price": price,
+            "deviation": 20,
+            "magic": 202609,
+            "comment": "Panic Dashboard Close",
+            "type_time": mt5.ORDER_TIME_GTC,
+            "type_filling": mt5.ORDER_FILLING_IOC,
+        }
+        
+        result = mt5.order_send(request)
+        if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
+            err_msg = result.comment if result else "Terminal error"
+            errors.append(f"Ticket #{p.ticket} ({p.symbol}) failed: {err_msg}")
+        else:
+            closed_tickets.append(p.ticket)
+            
+    if errors:
+        return jsonify({
+            "success": False,
+            "closed": closed_tickets,
+            "errors": errors,
+            "message": f"Closed {len(closed_tickets)} positions with {len(errors)} errors"
+        })
+        
+    trigger_alerts(f"🚨 <b>PANIC MODE ACTIVATED</b><br>All {len(closed_tickets)} active positions have been force-closed via Admin Web Console.")
+    return jsonify({"success": True, "message": f"Successfully closed all {len(closed_tickets)} positions!"})
+
+@app.route("/api/trade/execute", methods=["POST"])
+def trade_execute():
+    # Note: accessible by investors copying active signal alerts
+    data = request.json
+    if not data:
+        return jsonify({"success": False, "error": "Invalid request payload"}), 400
+        
+    symbol = data.get("symbol")
+    trade_type_str = data.get("type", "").upper()
+    volume = float(data.get("volume", 0.01))
+    sl = float(data.get("sl", 0.0))
+    tp = float(data.get("tp", 0.0))
+    
+    if not symbol or trade_type_str not in ("BUY", "SELL"):
+        return jsonify({"success": False, "error": "Missing or invalid symbol/type"}), 400
+        
+    if not ensure_mt5_login():
+        return jsonify({"success": False, "error": "MT5 terminal offline"})
+        
+    config = load_config()
+    multiplier = config.get("risk_multiplier", 1.0)
+    adjusted_volume = round(volume * multiplier, 2)
+    if adjusted_volume < 0.01:
+        adjusted_volume = 0.01
+        
+    mt5.symbol_select(symbol, True)
+    sym_info = mt5.symbol_info(symbol)
+    if not sym_info:
+        return jsonify({"success": False, "error": f"Symbol {symbol} not found on broker server"})
+        
+    if adjusted_volume < sym_info.volume_min:
+        adjusted_volume = sym_info.volume_min
+    elif adjusted_volume > sym_info.volume_max:
+        adjusted_volume = sym_info.volume_max
+        
+    tick = mt5.symbol_info_tick(symbol)
+    if not tick:
+        return jsonify({"success": False, "error": f"Cannot get price tick details for {symbol}"})
+        
+    order_type = mt5.ORDER_TYPE_BUY if trade_type_str == "BUY" else mt5.ORDER_TYPE_SELL
+    price = tick.ask if trade_type_str == "BUY" else tick.bid
+    
+    price_digits = sym_info.digits
+    price = round(price, price_digits)
+    
+    order_request = {
+        "action": mt5.TRADE_ACTION_DEAL,
+        "symbol": symbol,
+        "volume": adjusted_volume,
+        "type": order_type,
+        "price": price,
+        "deviation": 20,
+        "magic": 202610,
+        "comment": f"Jetro Copy Signal ({multiplier}x)",
+        "type_time": mt5.ORDER_TIME_GTC,
+        "type_filling": mt5.ORDER_FILLING_IOC
+    }
+    
+    if sl > 0:
+        order_request["sl"] = round(sl, price_digits)
+    if tp > 0:
+        order_request["tp"] = round(tp, price_digits)
+        
+    result = mt5.order_send(order_request)
+    if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
+        err_msg = result.comment if result else "Terminal execution error"
+        return jsonify({"success": False, "error": f"Order execution failed: {err_msg}"})
+        
+    msg = (
+        f"⚡ <b>SIGNAL COPIED SUCCESSFULLY</b><br>"
+        f"<b>Symbol:</b> {symbol}<br>"
+        f"<b>Type:</b> {trade_type_str}<br>"
+        f"<b>Volume:</b> {adjusted_volume} (Base: {volume} x {multiplier}x)<br>"
+        f"<b>Price:</b> {price:.5f}<br>"
+        f"<b>Ticket:</b> #{result.order}<br>"
+        f"<b>Status:</b> Position opened."
+    )
+    trigger_alerts(msg)
+    return jsonify({"success": True, "message": f"Successfully placed {trade_type_str} order for {adjusted_volume} lots!"})
+
+@app.route("/api/admin/trade", methods=["POST"])
+def admin_trade():
+    if not session.get("admin_logged_in"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+        
+    data = request.json
+    if not data:
+        return jsonify({"success": False, "error": "Invalid request payload"}), 400
+        
+    symbol = data.get("symbol")
+    trade_type_str = data.get("type", "").upper()
+    volume = float(data.get("volume", 0.01))
+    sl = float(data.get("sl", 0.0)) if data.get("sl") else 0.0
+    tp = float(data.get("tp", 0.0)) if data.get("tp") else 0.0
+    
+    if not symbol or trade_type_str not in ("BUY", "SELL"):
+        return jsonify({"success": False, "error": "Missing or invalid symbol/type"}), 400
+        
+    if not ensure_mt5_login():
+        return jsonify({"success": False, "error": "MT5 terminal offline"})
+        
+    mt5.symbol_select(symbol, True)
+    sym_info = mt5.symbol_info(symbol)
+    if not sym_info:
+        return jsonify({"success": False, "error": f"Symbol {symbol} not found on broker server"})
+        
+    if volume < sym_info.volume_min:
+        volume = sym_info.volume_min
+    elif volume > sym_info.volume_max:
+        volume = sym_info.volume_max
+        
+    tick = mt5.symbol_info_tick(symbol)
+    if not tick:
+        return jsonify({"success": False, "error": f"Cannot get price tick details for {symbol}"})
+        
+    order_type = mt5.ORDER_TYPE_BUY if trade_type_str == "BUY" else mt5.ORDER_TYPE_SELL
+    price = tick.ask if trade_type_str == "BUY" else tick.bid
+    
+    price_digits = sym_info.digits
+    price = round(price, price_digits)
+    
+    order_request = {
+        "action": mt5.TRADE_ACTION_DEAL,
+        "symbol": symbol,
+        "volume": volume,
+        "type": order_type,
+        "price": price,
+        "deviation": 20,
+        "magic": 202611,
+        "comment": "Admin Quick Trade",
+        "type_time": mt5.ORDER_TIME_GTC,
+        "type_filling": mt5.ORDER_FILLING_IOC
+    }
+    
+    if sl > 0:
+        order_request["sl"] = round(sl, price_digits)
+    if tp > 0:
+        order_request["tp"] = round(tp, price_digits)
+        
+    result = mt5.order_send(order_request)
+    if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
+        err_msg = result.comment if result else "Terminal execution error"
+        return jsonify({"success": False, "error": f"Order execution failed: {err_msg}"})
+        
+    msg = (
+        f"⚡ <b>ADMIN QUICK ORDER EXECUTED</b><br>"
+        f"<b>Symbol:</b> {symbol}<br>"
+        f"<b>Type:</b> {trade_type_str}<br>"
+        f"<b>Volume:</b> {volume} Lots<br>"
+        f"<b>Price:</b> {price:.5f}<br>"
+        f"<b>Ticket:</b> #{result.order}<br>"
+        f"<b>Status:</b> Position opened."
+    )
+    trigger_alerts(msg)
+    return jsonify({"success": True, "message": f"Successfully executed {trade_type_str} order of {volume} lots!", "ticket": result.order})
+
+# =========================
 # PORTFOLIO AND DAILY SUMMARY
 # =========================
 
 @app.route("/api/portfolio")
 def portfolio_data():
-    if not mt5.initialize():
-        return jsonify({"success": False, "error": "MT5 terminal offline"})
+    if not ensure_mt5_login():
+        return jsonify({"success": False, "error": "MT5 terminal offline or login failed"})
         
     config = load_config()
     weights = config.get("portfolio_weights", {

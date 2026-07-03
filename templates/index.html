@@ -7,7 +7,7 @@
     
     <!-- External CSS Libraries -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='1.2') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='1.4') }}">
     
     <!-- TradingView Lightweight Charts (Premium Candlestick Rendering) -->
     <script src="{{ url_for('static', filename='js/lightweight-charts.standalone.production.js') }}"></script>
@@ -44,7 +44,7 @@
                     </select>
                 </div>
                 {% if role == 'admin' %}
-                <a href="/admin/logout" class="btn-primary btn-mini" style="background: var(--accent-rose); border-color: var(--accent-rose); color: white; display: flex; align-items: center; gap: 0.3rem; text-decoration: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 600; font-size: 0.75rem; transition: var(--transition-smooth); width: auto; height: auto;">
+                <a href="/admin/logout" class="btn-primary btn-mini" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); color: white; display: flex; align-items: center; gap: 0.3rem; text-decoration: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 600; font-size: 0.75rem; transition: var(--transition-smooth); width: auto; height: auto;">
                     <i class="fa-solid fa-right-from-bracket"></i> Logout
                 </a>
                 {% else %}
@@ -87,6 +87,44 @@
                 <div class="metric-change" style="color: var(--text-secondary)">
                     Balance: <span id="stat-balance">$0.00</span>
                 </div>
+                <div style="font-size: 0.6rem; color: var(--accent-cyan); opacity: 0.75; margin-top: 0.35rem; display: flex; align-items: center; gap: 0.3rem; letter-spacing: 0.3px; font-weight: 600; text-transform: uppercase;">
+                    <i class="fa-solid fa-landmark" style="font-size: 0.55rem;"></i>
+                    Total portfolio managed by LakshmiFX
+                </div>
+            </div>
+
+            <!-- Total Deposit Card -->
+            <div class="glass-panel metric-card profit-card" style="position: relative; border-top: 3px solid var(--accent-emerald);" title="Total capital deposited into this account">
+                <div class="metric-header">
+                    <span>TOTAL DEPOSIT</span>
+                    <i class="fa-solid fa-arrow-down-to-line" style="color: var(--accent-emerald);"></i>
+                </div>
+                <div id="stat-total-deposits" class="metric-value" style="color: var(--accent-emerald);">$0.00</div>
+                <div class="metric-change" style="color: var(--text-secondary);">
+                    <i class="fa-solid fa-circle-check" style="color: var(--accent-emerald); font-size: 0.65rem;"></i>
+                    Cumulative inflow
+                </div>
+                <div style="font-size: 0.6rem; color: var(--accent-emerald); opacity: 0.7; margin-top: 0.35rem; display: flex; align-items: center; gap: 0.3rem; letter-spacing: 0.3px; font-weight: 600; text-transform: uppercase;">
+                    <i class="fa-solid fa-landmark" style="font-size: 0.55rem;"></i>
+                    Managed by LakshmiFX
+                </div>
+            </div>
+
+            <!-- Total Withdrawal Card -->
+            <div class="glass-panel metric-card loss-card" style="position: relative; border-top: 3px solid var(--accent-rose);" title="Total capital withdrawn from this account">
+                <div class="metric-header">
+                    <span>TOTAL WITHDRAWAL</span>
+                    <i class="fa-solid fa-arrow-up-from-line" style="color: var(--accent-rose);"></i>
+                </div>
+                <div id="stat-total-withdrawals" class="metric-value" style="color: var(--accent-rose);">$0.00</div>
+                <div class="metric-change" style="color: var(--text-secondary);">
+                    <i class="fa-solid fa-circle-minus" style="color: var(--accent-rose); font-size: 0.65rem;"></i>
+                    Cumulative outflow
+                </div>
+                <div style="font-size: 0.6rem; color: var(--accent-rose); opacity: 0.7; margin-top: 0.35rem; display: flex; align-items: center; gap: 0.3rem; letter-spacing: 0.3px; font-weight: 600; text-transform: uppercase;">
+                    <i class="fa-solid fa-landmark" style="font-size: 0.55rem;"></i>
+                    Managed by LakshmiFX
+                </div>
             </div>
             
             <!-- Win Rate Card (Report Link Trigger) -->
@@ -109,7 +147,19 @@
                 </div>
                 <div id="stat-profit-factor" class="metric-value">0.00</div>
                 <div class="metric-change" style="color: var(--text-secondary)">
-                    Sharpe: <span id="stat-sharpe">0.00</span>
+                    Sharpe: <span id="stat-sharpe">0.00</span> | Sortino: <span id="stat-sortino">0.00</span>
+                </div>
+            </div>
+
+            <!-- Drawdown & Risk Card -->
+            <div class="glass-panel metric-card loss-card" style="position: relative;">
+                <div class="metric-header">
+                    <span>MAX DRAWDOWN</span>
+                    <i class="fa-solid fa-chart-line-down" style="color: var(--accent-rose)"></i>
+                </div>
+                <div id="stat-drawdown" class="metric-value">0.0%</div>
+                <div class="metric-change" style="color: var(--text-secondary)">
+                    Recovery Ftr: <span id="stat-recovery">0.00</span>
                 </div>
             </div>
 
@@ -495,6 +545,47 @@
                             </div>
                         </div>
                         
+                        <!-- Trade Signal Details Toggler -->
+                        <div class="form-group" style="margin-bottom: 0.75rem;">
+                            <label style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="advisory-is-signal" onchange="toggleSignalFields(this.checked)" style="width: 14px; height: 14px; accent-color: var(--accent-violet);">
+                                <span class="form-label" style="margin-bottom: 0; font-size: 0.7rem;">Attach Active Trade Signal</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Collapsible Trade Signal Form Grid -->
+                        <div id="signal-fields-grid" style="display: none; background: rgba(0, 0, 0, 0.2); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem; border: 1px solid rgba(255,255,255,0.02); gap: 0.5rem; grid-template-columns: 1fr 1fr;">
+                            <div class="form-group" style="margin-bottom: 0.5rem; grid-column: 1 / 2;">
+                                <label class="form-label" style="font-size: 0.6rem; color: var(--accent-violet);">Symbol</label>
+                                <select id="signal-symbol" class="form-input" style="padding: 0.3rem 0.5rem; font-size: 0.75rem;">
+                                    <option value="EURUSD">EURUSD</option>
+                                    <option value="GBPUSD">GBPUSD</option>
+                                    <option value="USDJPY">USDJPY</option>
+                                    <option value="XAUUSD">XAUUSD</option>
+                                    <option value="BTCUSD">BTCUSD</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0.5rem; grid-column: 2 / 3;">
+                                <label class="form-label" style="font-size: 0.6rem; color: var(--accent-violet);">Direction</label>
+                                <select id="signal-type" class="form-input" style="padding: 0.3rem 0.5rem; font-size: 0.75rem;">
+                                    <option value="BUY">BUY</option>
+                                    <option value="SELL">SELL</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0.5rem; grid-column: 1 / 3;">
+                                <label class="form-label" style="font-size: 0.6rem; color: var(--accent-violet);">Volume (Lots)</label>
+                                <input type="number" id="signal-volume" class="form-input" style="padding: 0.3rem 0.5rem; font-size: 0.75rem;" step="0.01" min="0.01" value="0.01">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0.5rem; grid-column: 1 / 2;">
+                                <label class="form-label" style="font-size: 0.6rem; color: var(--accent-violet);">Stop Loss (SL Price)</label>
+                                <input type="number" id="signal-sl" class="form-input" style="padding: 0.3rem 0.5rem; font-size: 0.75rem;" step="0.00001" placeholder="e.g. 1.0780">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0.5rem; grid-column: 2 / 3;">
+                                <label class="form-label" style="font-size: 0.6rem; color: var(--accent-violet);">Take Profit (TP Price)</label>
+                                <input type="number" id="signal-tp" class="form-input" style="padding: 0.3rem 0.5rem; font-size: 0.75rem;" step="0.00001" placeholder="e.g. 1.0920">
+                            </div>
+                        </div>
+                        
                         <div style="display: flex; gap: 0.5rem;">
                             <button id="advisory-submit-btn" class="btn-primary" style="flex: 2; border-radius: 6px; padding: 0.45rem 0; font-size: 0.8rem;" onclick="broadcastAdvisory()"><i class="fa-solid fa-paper-plane"></i> Publish Advisory</button>
                             <button id="advisory-cancel-btn" class="btn-secondary" style="flex: 1; border-radius: 6px; padding: 0.45rem 0; font-size: 0.8rem; display: none;" onclick="cancelAdvisoryEdit()"><i class="fa-solid fa-xmark"></i> Cancel</button>
@@ -556,6 +647,27 @@
 
                 <!-- ALERTS & NOTIFICATIONS SETTINGS (ADMIN ONLY) -->
                 {% if role == 'admin' %}
+                <div class="glass-panel table-panel" style="border-top: 4px solid var(--accent-cyan); margin-bottom: 1.5rem;">
+                    <h3 class="chart-title" style="margin-bottom: 1.25rem;"><i class="fa-solid fa-server" style="color: var(--accent-cyan)"></i> MT5 Terminal Connection Setup</h3>
+                    
+                    <div class="form-group">
+                        <label class="form-label">MT5 User ID / Login ID</label>
+                        <input type="text" id="mt5-login" class="form-input" placeholder="e.g. 472094795">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">MT5 Password</label>
+                        <input type="password" id="mt5-password" class="form-input" placeholder="Enter password">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">MT5 Server name</label>
+                        <input type="text" id="mt5-server" class="form-input" placeholder="e.g. Exness-MT5Trial16">
+                    </div>
+                    
+                    <button class="btn-primary" style="margin-top: 1rem;" onclick="saveMT5Settings()"><i class="fa-solid fa-plug"></i> Connect & Update MT5</button>
+                </div>
+
                 <div class="glass-panel table-panel">
                     <h3 class="chart-title" style="margin-bottom: 1.25rem;"><i class="fa-solid fa-bell-ring" style="color: var(--accent-amber)"></i> Real-Time Signals Setup</h3>
                     
@@ -598,6 +710,78 @@
                     </div>
                     
                     <button class="btn-primary" style="margin-top: 1rem;" onclick="saveAlertSettings()"><i class="fa-solid fa-save"></i> Save Notification Config</button>
+                </div>
+
+                <div class="glass-panel table-panel" style="margin-bottom: 1.5rem;">
+                    <h3 class="chart-title" style="margin-bottom: 1.25rem;"><i class="fa-solid fa-shield-halved" style="color: var(--accent-rose)"></i> Automated Risk Safeguards</h3>
+                    
+                    <div class="toggle-group">
+                        <span class="form-label" style="margin-bottom: 0;">Enable Trailing Stop</span>
+                        <label class="switch">
+                            <input type="checkbox" id="trailing-enabled-toggle" onchange="toggleRiskFields()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div id="trailing-distance-group" class="form-group" style="margin-top: 1rem; display: none;">
+                        <label class="form-label">Trailing Distance (Pips)</label>
+                        <input type="number" id="trailing-distance" class="form-input" placeholder="e.g. 20.0" step="0.5" value="20.0">
+                    </div>
+
+                    <div class="toggle-group" style="margin-top: 1rem;">
+                        <span class="form-label" style="margin-bottom: 0;">Enable Break-Even Guard</span>
+                        <label class="switch">
+                            <input type="checkbox" id="be-enabled-toggle" onchange="toggleRiskFields()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div id="be-activation-group" class="form-group" style="margin-top: 1rem; display: none;">
+                        <label class="form-label">Break-Even Trigger (Pips)</label>
+                        <input type="number" id="be-activation" class="form-input" placeholder="e.g. 15.0" step="0.5" value="15.0">
+                    </div>
+
+                    <button class="btn-primary" style="margin-top: 1rem;" onclick="saveRiskSettings()"><i class="fa-solid fa-shield-halved"></i> Save Risk Settings</button>
+                </div>
+
+                <div class="glass-panel table-panel" style="margin-bottom: 1.5rem;">
+                    <h3 class="chart-title" style="margin-bottom: 1.25rem;"><i class="fa-solid fa-bolt" style="color: var(--accent-emerald)"></i> One-Click Quick Order Desk</h3>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Symbol / Asset</label>
+                        <select id="quick-order-symbol" class="form-input" style="background: var(--bg-dark); color: #fff;">
+                            <option value="EURUSD">EURUSD</option>
+                            <option value="GBPUSD">GBPUSD</option>
+                            <option value="USDJPY">USDJPY</option>
+                            <option value="XAUUSD">XAUUSD</option>
+                            <option value="BTCUSD">BTCUSD</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Volume / Lots</label>
+                        <input type="number" id="quick-order-volume" class="form-input" placeholder="e.g. 0.01" step="0.01" min="0.01" value="0.01">
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Stop Loss (SL) Price</label>
+                            <input type="number" id="quick-order-sl" class="form-input" placeholder="Optional" step="0.00001">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Take Profit (TP) Price</label>
+                            <input type="number" id="quick-order-tp" class="form-input" placeholder="Optional" step="0.00001">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <button class="btn-primary" style="background: var(--accent-emerald); border-color: var(--accent-emerald); height: 42px; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-weight: 700;" onclick="executeQuickTrade('BUY')">
+                            <i class="fa-solid fa-arrow-trend-up"></i> QUICK BUY
+                        </button>
+                        <button class="btn-primary" style="background: var(--accent-rose); border-color: var(--accent-rose); height: 42px; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-weight: 700;" onclick="executeQuickTrade('SELL')">
+                            <i class="fa-solid fa-arrow-trend-down"></i> QUICK SELL
+                        </button>
+                    </div>
                 </div>
                 {% endif %}
 
@@ -701,6 +885,6 @@
     </div>
 
     <!-- Script Entrypoint -->
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v='1.4') }}"></script>
 </body>
 </html>

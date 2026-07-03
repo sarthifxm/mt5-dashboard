@@ -2,7 +2,16 @@
   "telegram_bot_token": "8959900363:AAGVGFJMA_iCXez_jwoEa6nATnSkyhCx1Fo",
   "telegram_chat_id": "-1003797295789",
   "whatsapp_webhook": "",
-  "telegram_enabled": true,
+  "telegram_enabled": false,
   "whatsapp_enabled": false,
-  "risk_multiplier": 1.0
+  "risk_multiplier": 1.0,
+  "admin_user": "admin",
+  "admin_pass": "JetroAdmin2026",
+  "mt5_login": 433808540,
+  "mt5_password": "Pmsp@1234",
+  "mt5_server": "Exness-MT5Trial7",
+  "trailing_stop_enabled": true,
+  "trailing_stop_distance": 20.0,
+  "break_even_enabled": true,
+  "break_even_activation": 15.0
 }

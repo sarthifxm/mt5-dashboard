@@ -708,3 +708,22 @@ input:checked + .slider:before {
 #toast.success { border-color: var(--accent-emerald); }
 #toast.error { border-color: var(--accent-rose); }
 #toast.info { border-color: var(--accent-cyan); }
+
+/* Premium Live Tick Flash Transitions */
+@keyframes flashUpGlow {
+    0% { background-color: rgba(16, 185, 129, 0.22); }
+    100% { background-color: transparent; }
+}
+
+@keyframes flashDownGlow {
+    0% { background-color: rgba(244, 63, 94, 0.22); }
+    100% { background-color: transparent; }
+}
+
+.flash-up td {
+    animation: flashUpGlow 1.2s ease-out;
+}
+
+.flash-down td {
+    animation: flashDownGlow 1.2s ease-out;
+}
