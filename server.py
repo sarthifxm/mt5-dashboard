@@ -548,7 +548,9 @@ def advanced_analytics():
             "equity_curve": [{"time": datetime.now().strftime("%Y-%m-%d"), "balance": bal}],
             "symbol_distribution": [],
             "daily_profit": [],
-            "monthly_profit": []
+            "monthly_profit": [],
+            "total_deposits": 0,
+            "total_withdrawals": 0
         })
 
     deals_sorted = list(deals)
