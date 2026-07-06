@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher foreground: Jetro "J" lettermark in cyan -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer glow ring -->
+    <path
+        android:fillColor="#1A06B6D4"
+        android:pathData="M54,14 A40,40 0 1 1 53.99,14 Z"/>
+
+    <!-- J lettermark -->
+    <path
+        android:fillColor="#06B6D4"
+        android:strokeColor="#8B5CF6"
+        android:strokeWidth="1"
+        android:pathData="M60,28 L60,66 C60,72 56,76 50,76 C44,76 40,72 40,66 L40,62 L46,62 L46,66 C46,68.5 47.5,70 50,70 C52.5,70 54,68.5 54,66 L54,28 Z"/>
+
+    <!-- Dot accent -->
+    <circle
+        android:fillColor="#8B5CF6"
+        android:cx="60"
+        android:cy="24"
+        android:r="3"/>
+</vector>
